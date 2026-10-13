@@ -1,0 +1,137 @@
+{
+  "schema_version": "1.0",
+  "framework_version": "0.1.0",
+  "timestamp_utc": "2025-01-01T00:00:00Z",
+  "model": "illustrative-model",
+  "model_digest": "synthetic-only",
+  "quantization": "illustrative",
+  "backend": "synthetic",
+  "backend_version": "not applicable",
+  "hardware": {
+    "collected_at": "2025-01-01T00:00:00Z",
+    "platform": "synthetic example",
+    "python_version": "3.x",
+    "cpu": "synthetic example",
+    "logical_cpu_count": null,
+    "total_ram_bytes": null,
+    "available_ram_bytes": null,
+    "ram_percent": null,
+    "gpu": null,
+    "gpu_memory_bytes": null,
+    "gpu_memory_source": null
+  },
+  "settings": {"note": "Synthetic presentation fixture; not a hardware measurement."},
+  "warmup_count": 0,
+  "repetition_count": 2,
+  "samples": [
+    {
+      "workload": "short-input",
+      "phase": "cold_start",
+      "repetition": 1,
+      "requested_output_tokens": 32,
+      "prompt_tokens": 12,
+      "output_tokens": 30,
+      "generation_tokens_per_second": 12.5,
+      "prompt_tokens_per_second": null,
+      "client_ttft_seconds": 0.4,
+      "client_duration_seconds": 2.8,
+      "server_load_seconds": 1.2,
+      "server_total_seconds": 2.7,
+      "prompt_eval_seconds": 0.2,
+      "eval_seconds": 2.4,
+      "prompt_cache_hit": null,
+      "done_reason": "stop",
+      "premature_completion": false,
+      "client_metrics": true,
+      "server_metrics": true
+    },
+    {
+      "workload": "short-input",
+      "phase": "benchmark",
+      "repetition": 1,
+      "requested_output_tokens": 32,
+      "prompt_tokens": 12,
+      "output_tokens": 30,
+      "generation_tokens_per_second": 12.5,
+      "prompt_tokens_per_second": null,
+      "client_ttft_seconds": 0.4,
+      "client_duration_seconds": 2.8,
+      "server_load_seconds": 1.2,
+      "server_total_seconds": 2.7,
+      "prompt_eval_seconds": 0.2,
+      "eval_seconds": 2.4,
+      "prompt_cache_hit": null,
+      "done_reason": "stop",
+      "premature_completion": false,
+      "client_metrics": true,
+      "server_metrics": true
+    },
+    {
+      "workload": "short-input",
+      "phase": "benchmark",
+      "repetition": 2,
+      "requested_output_tokens": 32,
+      "prompt_tokens": 12,
+      "output_tokens": 30,
+      "generation_tokens_per_second": 10.0,
+      "prompt_tokens_per_second": null,
+      "client_ttft_seconds": 0.5,
+      "client_duration_seconds": 3.1,
+      "server_load_seconds": 0.0,
+      "server_total_seconds": 3.0,
+      "prompt_eval_seconds": 0.2,
+      "eval_seconds": 3.0,
+      "prompt_cache_hit": null,
+      "done_reason": "stop",
+      "premature_completion": false,
+      "client_metrics": true,
+      "server_metrics": true
+    }
+  ],
+  "summaries": {
+    "generation_tokens_per_second": {
+      "count": 2,
+      "mean": 11.25,
+      "median": 11.25,
+      "standard_deviation": 1.7677669529663689,
+      "samples": [12.5, 10.0]
+    },
+    "client_ttft_seconds": {
+      "count": 2,
+      "mean": 0.45,
+      "median": 0.45,
+      "standard_deviation": 0.07071067811865475,
+      "samples": [0.4, 0.5]
+    },
+    "workload:short-input:generation_tokens_per_second": {
+      "count": 2,
+      "mean": 11.25,
+      "median": 11.25,
+      "standard_deviation": 1.7677669529663689,
+      "samples": [12.5, 10.0]
+    },
+    "workload:short-input:client_ttft_seconds": {
+      "count": 2,
+      "mean": 0.45,
+      "median": 0.45,
+      "standard_deviation": 0.07071067811865475,
+      "samples": [0.4, 0.5]
+    },
+    "workload:short-input:client_duration_seconds": {
+      "count": 2,
+      "mean": 2.95,
+      "median": 2.95,
+      "standard_deviation": 0.21213203435596428,
+      "samples": [2.8, 3.1]
+    },
+    "cold_start_load_seconds": {
+      "count": 1,
+      "mean": 1.2,
+      "median": 1.2,
+      "standard_deviation": 0,
+      "samples": [1.2]
+    }
+  },
+  "warnings": [],
+  "synthetic": true
+}

@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1100" height="560" viewBox="0 0 1100 560">
+  <rect width="1100" height="560" fill="#f3f6fa"/>
+  <text x="48" y="58" font-family="system-ui,sans-serif" font-size="32" font-weight="700" fill="#192431">Local LLM benchmark report</text>
+  <text x="48" y="92" font-family="system-ui,sans-serif" font-size="16" fill="#526273">SYNTHETIC PRESENTATION PREVIEW — NOT A REAL BENCHMARK</text>
+  <rect x="48" y="125" width="1004" height="365" rx="14" fill="#fff"/>
+  <text x="80" y="170" font-family="system-ui,sans-serif" font-size="21" font-weight="600" fill="#192431">Generation throughput (illustrative)</text>
+  <line x1="115" y1="415" x2="560" y2="415" stroke="#b8c5d1"/>
+  <line x1="115" y1="210" x2="115" y2="415" stroke="#b8c5d1"/>
+  <rect x="190" y="275" width="88" height="140" rx="5" fill="#3979b9"/>
+  <rect x="350" y="315" width="88" height="100" rx="5" fill="#75a9d8"/>
+  <text x="188" y="443" font-family="system-ui,sans-serif" font-size="15" fill="#34495e">Example A</text>
+  <text x="348" y="443" font-family="system-ui,sans-serif" font-size="15" fill="#34495e">Example B</text>
+  <text x="630" y="230" font-family="system-ui,sans-serif" font-size="20" font-weight="600" fill="#192431">Model comparison</text>
+  <text x="630" y="278" font-family="system-ui,sans-serif" font-size="16" fill="#526273">Median output tokens/s</text>
+  <text x="630" y="322" font-family="system-ui,sans-serif" font-size="17" fill="#192431">Example A</text>
+  <text x="930" y="322" font-family="system-ui,sans-serif" font-size="17" fill="#192431">12.5</text>
+  <line x1="630" y1="340" x2="995" y2="340" stroke="#e4eaf0"/>
+  <text x="630" y="375" font-family="system-ui,sans-serif" font-size="17" fill="#192431">Example B</text>
+  <text x="930" y="375" font-family="system-ui,sans-serif" font-size="17" fill="#192431">10.0</text>
+  <rect x="630" y="405" width="355" height="46" rx="6" fill="#fff0ce"/>
+  <text x="646" y="434" font-family="system-ui,sans-serif" font-size="14" font-weight="700" fill="#725116">Synthetic values only</text>
+</svg>
