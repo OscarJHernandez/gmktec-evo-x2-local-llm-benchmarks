@@ -124,25 +124,30 @@ class Experiment(BaseModel):
 
 def summarize_samples(samples: list[Sample]) -> dict[str, Summary]:
     values: dict[str, list[float]] = {}
+    metrics = (
+        "generation_tokens_per_second",
+        "prompt_tokens_per_second",
+        "client_ttft_seconds",
+        "client_duration_seconds",
+        "server_load_seconds",
+    )
     for sample in samples:
-        if sample.phase != "benchmark":
+        if sample.phase == "cold_start" and sample.server_load_seconds is not None:
+            values.setdefault("cold_start_load_seconds", []).append(sample.server_load_seconds)
+        if sample.phase not in {"benchmark", "warm_start"}:
             continue
-        for key in (
-            "generation_tokens_per_second",
-            "prompt_tokens_per_second",
-            "client_ttft_seconds",
-            "client_duration_seconds",
-            "server_load_seconds",
-        ):
+        for key in metrics:
             value = getattr(sample, key)
-            if value is not None:
-                summary_key = key
-                if key == "prompt_tokens_per_second":
-                    cache_state = {
-                        False: "uncached",
-                        True: "cached",
-                        None: "cache_unknown",
-                    }[sample.prompt_cache_hit]
-                    summary_key = f"{key}_{cache_state}"
-                values.setdefault(summary_key, []).append(float(value))
+            if value is None:
+                continue
+            summary_key = key
+            if key == "prompt_tokens_per_second":
+                cache_state = {
+                    False: "uncached",
+                    True: "cached",
+                    None: "cache_unknown",
+                }[sample.prompt_cache_hit]
+                summary_key = f"{key}_{cache_state}"
+            values.setdefault(summary_key, []).append(float(value))
+            values.setdefault(f"workload:{sample.workload}:{summary_key}", []).append(float(value))
     return {key: Summary.from_values(items) for key, items in values.items()}

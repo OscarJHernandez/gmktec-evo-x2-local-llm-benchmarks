@@ -66,7 +66,7 @@ is self-contained and explicitly marked synthetic.
 - An initial candidate is labeled cold-start only if Ollama reports a positive
   model load duration. If the model was already resident, the sample is labeled
   warm-start and the report warns that cold loading was not observed. Configured
-  warm-ups are then run before measured warm repetitions.
+  warm-ups are then run before measured samples labeled `warm_start`.
 - Output token limits are passed to Ollama. A zero-token response or API
   `done_reason` of `length` / `max_tokens` is flagged; every raw measurement,
   including flagged data, remains available for audit.
@@ -90,7 +90,7 @@ The full interactive charts and raw sample table are in the offline HTML report.
 
 Host OS, Python, CPU model, core count and system RAM statistics are collected
 when available. GPU information is optional. A Python GPU collector can be
-injected through `collect_hardware(gpu_collector=...)`; collector errors are
+injected through `run_benchmark(..., gpu_collector=...)`; collector errors are
 ignored and missing values remain empty. No collector is enabled by default.
 The project does not treat AMD VRAM/GTT address-space limits as physical GPU
 memory consumption.

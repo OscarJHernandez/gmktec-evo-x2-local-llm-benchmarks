@@ -4,21 +4,15 @@ from __future__ import annotations
 
 import json
 import time
-from dataclasses import dataclass
-from typing import Any
-from urllib.error import HTTPError, URLError
+from typing import Any, cast
+from urllib.error import HTTPError
 from urllib.request import Request, urlopen
+
+from llm_bench.backends.base import GenerateResult
 
 
 class OllamaError(RuntimeError):
     """An Ollama request failed or returned an invalid response."""
-
-
-@dataclass
-class GenerateResult:
-    payload: dict[str, Any]
-    client_duration_seconds: float
-    client_ttft_seconds: float | None
 
 
 class OllamaBackend:
@@ -37,23 +31,26 @@ class OllamaBackend:
             with urlopen(request, timeout=self.timeout) as response:
                 return json.loads(response.read())
         except HTTPError as exc:
-            detail = exc.read().decode(errors="replace")[:300]
             message = "model not found" if exc.code == 404 else f"HTTP {exc.code}"
-            raise OllamaError(f"Ollama {message}: {detail}") from exc
-        except (URLError, TimeoutError, json.JSONDecodeError) as exc:
-            raise OllamaError(f"Cannot communicate with Ollama at {self.api_url}: {exc}") from exc
+            raise OllamaError(f"Ollama {message}") from exc
+        except (OSError, json.JSONDecodeError, UnicodeDecodeError) as exc:
+            raise OllamaError("Cannot communicate with configured Ollama endpoint.") from exc
 
     def health(self) -> str:
         value = self._request("/api/version")
-        if not isinstance(value, dict) or not isinstance(value.get("version"), str):
+        version = value.get("version") if isinstance(value, dict) else None
+        if not isinstance(version, str):
             raise OllamaError("Malformed Ollama version response")
-        return value["version"]
+        return version
 
     def models(self) -> list[dict[str, Any]]:
         value = self._request("/api/tags")
         if not isinstance(value, dict) or not isinstance(value.get("models"), list):
             raise OllamaError("Malformed Ollama model list response")
-        return value["models"]
+        model_list = value["models"]
+        if any(not isinstance(model, dict) for model in model_list):
+            raise OllamaError("Malformed Ollama model list response")
+        return cast(list[dict[str, Any]], model_list)
 
     def find_model(self, name: str) -> dict[str, Any]:
         normalized = name.split(":")[0]
@@ -97,7 +94,7 @@ class OllamaBackend:
                         continue
                     try:
                         chunk = json.loads(raw_line)
-                    except json.JSONDecodeError as exc:
+                    except (json.JSONDecodeError, UnicodeDecodeError) as exc:
                         raise OllamaError("Malformed streaming response from Ollama") from exc
                     if not isinstance(chunk, dict):
                         raise OllamaError("Malformed streaming response from Ollama")
@@ -105,15 +102,14 @@ class OllamaBackend:
                     if first_output is None and chunk.get("response"):
                         first_output = time.perf_counter() - started
                     if chunk.get("error"):
-                        raise OllamaError(str(chunk["error"]))
+                        raise OllamaError("Ollama returned an error response")
                     if chunk.get("done") is True:
                         break
         except HTTPError as exc:
-            detail = exc.read().decode(errors="replace")[:300]
             message = "model not found" if exc.code == 404 else f"HTTP {exc.code}"
-            raise OllamaError(f"Ollama {message}: {detail}") from exc
-        except (URLError, TimeoutError) as exc:
-            raise OllamaError(f"Cannot communicate with configured Ollama endpoint: {exc}") from exc
+            raise OllamaError(f"Ollama {message}") from exc
+        except OSError as exc:
+            raise OllamaError("Cannot communicate with configured Ollama endpoint.") from exc
         if not chunks or chunks[-1].get("done") is not True:
             raise OllamaError("Ollama stream ended without a final response")
         merged = dict(chunks[-1])

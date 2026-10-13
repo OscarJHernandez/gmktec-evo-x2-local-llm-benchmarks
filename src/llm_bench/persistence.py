@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import csv
-import json
 from pathlib import Path
 
 from llm_bench.models import Experiment
@@ -51,6 +50,11 @@ def export_csv(experiments: list[Experiment], output: Path) -> Path:
         writer.writeheader()
         for experiment in experiments:
             for sample in experiment.samples:
-                writer.writerow({"model": experiment.model, "model_digest": experiment.model_digest,
-                                 **sample.model_dump(include=set(columns) - {"model", "model_digest"})})
+                writer.writerow(
+                    {
+                        "model": experiment.model,
+                        "model_digest": experiment.model_digest,
+                        **sample.model_dump(include=set(columns) - {"model", "model_digest"}),
+                    }
+                )
     return output

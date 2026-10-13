@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import platform
-import sys
 from collections.abc import Callable
 
 import psutil
@@ -21,8 +20,21 @@ def collect_hardware(gpu_collector: GpuCollector | None = None) -> HardwareInfo:
     if gpu_collector is not None:
         try:
             gpu_name, gpu_bytes, gpu_source = gpu_collector()
-        except (OSError, RuntimeError, ValueError):
-            pass
+            if (
+                (gpu_name is not None and not isinstance(gpu_name, str))
+                or (
+                    gpu_bytes is not None
+                    and (
+                        isinstance(gpu_bytes, bool)
+                        or not isinstance(gpu_bytes, int)
+                        or gpu_bytes < 0
+                    )
+                )
+                or (gpu_source is not None and not isinstance(gpu_source, str))
+            ):
+                raise ValueError("GPU collector returned invalid values")
+        except (OSError, RuntimeError, TypeError, ValueError):
+            gpu_name, gpu_bytes, gpu_source = None, None, None
     return HardwareInfo(
         platform=platform.platform(),
         python_version=platform.python_version(),

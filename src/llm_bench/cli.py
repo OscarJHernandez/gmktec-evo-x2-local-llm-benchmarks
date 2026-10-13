@@ -9,6 +9,7 @@ import typer
 from rich.console import Console
 from rich.table import Table
 
+from llm_bench.backends.base import InferenceBackend
 from llm_bench.backends.ollama import OllamaBackend, OllamaError
 from llm_bench.models import BenchmarkConfig
 from llm_bench.persistence import export_csv, load_experiments, save_experiment
@@ -73,7 +74,9 @@ def run(
     repeat: int = typer.Option(5, min=1, max=100, help="Measured repetitions per workload."),
     warmup: int = typer.Option(1, min=0, max=20, help="Warm-up repetitions per workload."),
     api_url: str = typer.Option(DEFAULT_API, "--api-url", help="Ollama API URL."),
-    output_dir: Path = typer.Option(DEFAULT_RESULTS, help="Directory for machine-readable results."),
+    output_dir: Path = typer.Option(
+        DEFAULT_RESULTS, help="Directory for machine-readable results."
+    ),
     csv: bool = typer.Option(False, "--csv", help="Also export samples to CSV."),
 ) -> None:
     """Run default short-input, long-input, and long-generation workloads."""
@@ -86,7 +89,9 @@ def compare(
     repeat: int = typer.Option(5, min=1, max=100, help="Measured repetitions per workload."),
     warmup: int = typer.Option(1, min=0, max=20, help="Warm-up repetitions per workload."),
     api_url: str = typer.Option(DEFAULT_API, "--api-url", help="Ollama API URL."),
-    output_dir: Path = typer.Option(DEFAULT_RESULTS, help="Directory for machine-readable results."),
+    output_dir: Path = typer.Option(
+        DEFAULT_RESULTS, help="Directory for machine-readable results."
+    ),
 ) -> None:
     """Benchmark multiple installed models sequentially and compare results."""
     names = list(dict.fromkeys(name.strip() for name in models.split(",") if name.strip()))
@@ -96,9 +101,13 @@ def compare(
     try:
         installed = backend.models()
         available = {str(item.get("name") or item.get("model")) for item in installed}
-        missing = [name for name in names if name not in available]
+        missing = [
+            name for name in names if name not in available and f"{name}:latest" not in available
+        ]
         if missing:
-            raise OllamaError(f"Models not installed: {', '.join(missing)}. No models were downloaded.")
+            raise OllamaError(
+                f"Models not installed: {', '.join(missing)}. No models were downloaded."
+            )
         for name in names:
             _run(name, repeat, warmup, api_url, output_dir, False, backend=backend)
     except OllamaError as exc:
@@ -109,7 +118,9 @@ def compare(
 @app.command()
 def report(
     output: Path = typer.Option(Path("report.html"), "--output", help="Output HTML report path."),
-    input_dir: Path = typer.Option(DEFAULT_RESULTS, "--input", help="JSON file or results directory."),
+    input_dir: Path = typer.Option(
+        DEFAULT_RESULTS, "--input", help="JSON file or results directory."
+    ),
     csv_output: Path | None = typer.Option(None, "--csv", help="Optional CSV output path."),
 ) -> None:
     """Create an offline HTML report from saved experiment JSON files."""
@@ -136,7 +147,7 @@ def _run(
     output_dir: Path,
     csv: bool,
     *,
-    backend: OllamaBackend | None = None,
+    backend: InferenceBackend | None = None,
 ) -> None:
     try:
         config = BenchmarkConfig(model=model, repeat=repeat, warmup=warmup, api_url=api_url)
@@ -155,12 +166,15 @@ def _run(
         values = [
             item.generation_tokens_per_second
             for item in experiment.samples
-            if item.workload == workload and item.phase == "benchmark"
+            if item.workload == workload
+            and item.phase in {"benchmark", "warm_start"}
             and item.generation_tokens_per_second is not None
         ]
         ttft = [
-            item.client_ttft_seconds for item in experiment.samples
-            if item.workload == workload and item.phase == "benchmark"
+            item.client_ttft_seconds
+            for item in experiment.samples
+            if item.workload == workload
+            and item.phase in {"benchmark", "warm_start"}
             and item.client_ttft_seconds is not None
         ]
         from statistics import median
