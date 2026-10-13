@@ -1,0 +1,16 @@
+name: Bug report
+description: Report a reproducible problem
+body:
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected and actual behavior
+    validations:
+      required: true
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: Include Python, OS, Ollama version, and backend; omit private host/network details.
+    validations:
+      required: true
