@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import math
+from datetime import datetime, timezone
 from typing import Any
 
 from llm_bench import __version__
@@ -114,6 +115,7 @@ def run_benchmark(
                     )
                 samples.append(
                     Sample(
+                        timestamp_utc=datetime.now(timezone.utc),
                         workload=workload.name,
                         phase=phase,
                         repetition=repetition + 1,

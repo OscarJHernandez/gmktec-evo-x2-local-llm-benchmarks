@@ -60,6 +60,36 @@ class OllamaBackend:
                 return model
         raise OllamaError(f"Model {name!r} is not installed; no model was downloaded.")
 
+    def pull(self, model: str) -> None:
+        """Download one Ollama tag, consuming progress messages without buffering them."""
+        request = Request(
+            f"{self.api_url}/api/pull",
+            data=json.dumps({"model": model, "stream": True}).encode(),
+            headers={"Content-Type": "application/json"},
+        )
+        success = False
+        try:
+            with urlopen(request, timeout=self.timeout) as response:
+                for raw_line in response:
+                    if not raw_line.strip():
+                        continue
+                    try:
+                        event = json.loads(raw_line)
+                    except (json.JSONDecodeError, UnicodeDecodeError) as exc:
+                        raise OllamaError("Malformed Ollama model-pull response") from exc
+                    if not isinstance(event, dict):
+                        raise OllamaError("Malformed Ollama model-pull response")
+                    if event.get("error"):
+                        raise OllamaError(f"Ollama failed to pull {model}: {event['error']}")
+                    if event.get("status") == "success":
+                        success = True
+        except HTTPError as exc:
+            raise OllamaError(f"Ollama pull of {model} failed (HTTP {exc.code})") from exc
+        except OSError as exc:
+            raise OllamaError(f"Ollama pull of {model} was interrupted") from exc
+        if not success:
+            raise OllamaError(f"Ollama pull of {model} ended without confirmation")
+
     def generate(
         self,
         model: str,
