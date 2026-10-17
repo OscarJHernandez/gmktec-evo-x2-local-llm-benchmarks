@@ -60,7 +60,6 @@ class OllamaBackend:
                 return model
         raise OllamaError(f"Model {name!r} is not installed; no model was downloaded.")
 
-
     def pull(self, model: str) -> None:
         """Download one Ollama tag, consuming progress messages without buffering them."""
         request = Request(
