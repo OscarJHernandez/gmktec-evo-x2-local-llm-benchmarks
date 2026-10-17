@@ -481,6 +481,7 @@ def physics_results(
         raise typer.Exit(code=1) from exc
     table = Table(
         "Model",
+        "Configuration",
         "Attempts",
         "Score eligible",
         "Correct",
@@ -488,10 +489,11 @@ def physics_results(
         "Inference errors",
         "Numeric proxy accuracy",
     )
-    for model, row in sorted(results.items()):
+    for (model, config_id), row in sorted(results.items()):
         accuracy = row["accuracy_numeric_proxy"]
         table.add_row(
             model,
+            config_id,
             str(row["attempts"]),
             str(row["scored"]),
             str(row["correct"]),
