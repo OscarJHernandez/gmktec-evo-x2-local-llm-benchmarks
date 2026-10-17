@@ -2,8 +2,12 @@
 
 from __future__ import annotations
 
+import json
 import os
+from datetime import datetime, timezone
 from pathlib import Path
+from urllib.parse import urlparse
+from uuid import uuid4
 
 import typer
 from rich.console import Console
@@ -11,6 +15,14 @@ from rich.table import Table
 
 from llm_bench.backends.base import InferenceBackend
 from llm_bench.backends.ollama import OllamaBackend, OllamaError
+from llm_bench.model_catalog import (
+    catalog_candidates,
+    fit_reason,
+    free_storage_bytes,
+    model_storage_dir,
+    select_installed,
+    system_ram_bytes,
+)
 from llm_bench.models import BenchmarkConfig
 from llm_bench.observations import export_jsonl, export_observations
 from llm_bench.persistence import export_csv, load_experiments, save_experiment
@@ -141,6 +153,144 @@ def compare(
     except OllamaError as exc:
         console.print(f"[red]{exc}[/red]")
         raise typer.Exit(code=1) from exc
+
+
+
+@app.command("catalog-run")
+def catalog_run(
+    repeat: int = typer.Option(50, min=1, max=100),
+    warmup: int = typer.Option(3, min=0, max=20),
+    api_url: str = typer.Option(DEFAULT_API, "--api-url"),
+    output_dir: Path = typer.Option(DEFAULT_RESULTS, "--output-dir"),
+    num_ctx: int = typer.Option(4096, min=1),
+    num_predict: int = typer.Option(128, min=1),
+    think: bool = typer.Option(False, "--think/--no-think"),
+    auto_pull: bool = typer.Option(False, "--auto-pull/--no-auto-pull"),
+    installed_only: bool = typer.Option(False, "--installed-only"),
+    catalog_file: Path | None = typer.Option(None, "--catalog-file"),
+    model_dir: Path | None = typer.Option(None, "--model-dir"),
+) -> None:
+    """Benchmark the curated fit-checked Ollama catalog plus installed models.
+
+    Use --auto-pull to download missing models explicitly. Results and progress
+    are stored locally and each failed model does not block the next.
+    """
+    if auto_pull and installed_only:
+        raise typer.BadParameter("Do not combine --auto-pull with --installed-only")
+    if urlparse(api_url).hostname not in {"localhost", "127.0.0.1", "::1"}:
+        raise typer.BadParameter(
+            "Catalog fit checks require a local Ollama server. Run on the Ollama host."
+        )
+
+    try:
+        client = _backend(api_url)
+        installed = client.models()
+        candidates = (
+            select_installed(installed)
+            if installed_only
+            else catalog_candidates(catalog_file)
+        )
+        if not installed_only:
+            known_names = {candidate.name for candidate in candidates}
+            candidates.extend(
+                item for item in select_installed(installed) if item.name not in known_names
+            )
+        total_ram = system_ram_bytes()
+        store = model_storage_dir(model_dir)
+        free_storage_bytes(store)
+    except (OllamaError, OSError, ValueError) as exc:
+        console.print(f"[red]Catalog preflight failed: {exc}[/red]")
+        raise typer.Exit(code=1) from exc
+
+    installed_by_name = {
+        str(item.get("name") or item.get("model")): item for item in installed
+    }
+    output_dir.mkdir(parents=True, exist_ok=True)
+    progress = output_dir / (
+        f"catalog-progress-{datetime.now(timezone.utc):%Y%m%dT%H%M%SZ}-{uuid4().hex}.jsonl"
+    )
+    successful = 0
+    skipped = 0
+    failed = 0
+    with progress.open("x", encoding="utf-8") as stream:
+        for index, candidate in enumerate(candidates, 1):
+            name = candidate.name
+            metadata = installed_by_name.get(name)
+            actual_size = metadata.get("size") if metadata else None
+            size_gb = (
+                actual_size / 1_000_000_000
+                if isinstance(actual_size, int) and actual_size > 0
+                else candidate.size_gb
+            )
+            from llm_bench.model_catalog import Candidate
+
+            sized = Candidate(name, size_gb)
+            try:
+                free_disk = free_storage_bytes(store)
+                reason = fit_reason(
+                    sized,
+                    total_ram_bytes=total_ram,
+                    free_disk_bytes=free_disk,
+                    already_installed=metadata is not None,
+                )
+            except OSError as exc:
+                reason = f"Cannot verify Ollama model storage: {exc}"
+            record = {
+                "timestamp_utc": datetime.now(timezone.utc).isoformat(),
+                "model": name,
+                "estimated_size_gb": size_gb,
+                "candidate_index": index,
+                "candidate_count": len(candidates),
+                "installed_before": metadata is not None,
+                "status": "pending",
+                "reason": None,
+            }
+            if reason is not None:
+                record["status"], record["reason"] = "skipped_fit", reason
+            elif metadata is None and not auto_pull:
+                record["status"], record["reason"] = "skipped_not_installed", (
+                    "Enable --auto-pull to download candidate"
+                )
+            else:
+                try:
+                    if metadata is None:
+                        console.print(f"[cyan]Pulling[/cyan] {name} ({index}/{len(candidates)})")
+                        client.pull(name)
+                        metadata = client.find_model(name)
+                    console.print(f"[cyan]Benchmarking[/cyan] {name} ({index}/{len(candidates)})")
+                    _run(
+                        name,
+                        repeat,
+                        warmup,
+                        api_url,
+                        output_dir,
+                        False,
+                        backend=client,
+                        num_ctx=num_ctx,
+                        num_predict=num_predict,
+                        think=think,
+                    )
+                    record["status"] = "completed"
+                    successful += 1
+                except (OllamaError, typer.Exit, OSError, ValueError) as exc:
+                    record["status"], record["reason"] = (
+                        "failed",
+                        str(exc) if not isinstance(exc, typer.Exit) else "Benchmark failed",
+                    )
+                    failed += 1
+            if str(record["status"]).startswith("skipped"):
+                skipped += 1
+            stream.write(json.dumps(record, ensure_ascii=False) + "\n")
+            stream.flush()
+            console.print(f"{name}: {record['status']}" + (
+                f" ({record['reason']})" if record["reason"] else ""
+            ))
+    console.print(
+        f"[bold]Catalog complete[/bold]: {successful} passed, "
+        f"{skipped} skipped, {failed} failed. Status records: {progress}"
+    )
+    if successful == 0:
+        raise typer.Exit(code=1)
 
 
 @app.command()
