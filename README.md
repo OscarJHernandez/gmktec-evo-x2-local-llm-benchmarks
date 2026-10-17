@@ -12,7 +12,7 @@ latency, model loading and host memory without uploading prompts or results.
 Milestone 1 supports the Ollama `/api/generate` endpoint. Three deterministic
 workloads cover short input, long input and longer generation. The framework
 records Ollama server timings separately from Python-client measurements and
-persists every sample. No model is ever downloaded automatically.
+persists every sample. No model is downloaded by the base CLI benchmarks; the opt-in Makefile catalog workflow explicitly downloads eligible Ollama models.
 
 ## Quick start
 
@@ -50,6 +50,63 @@ Dots above are format examples, not measured values. The sample report and
 `examples/synthetic-example.json` contain synthetic illustration values only.
 Open [`examples/sample-report.html`](examples/sample-report.html) locally; it
 is self-contained and explicitly marked synthetic.
+
+## Automated EVO-X2 model catalog
+
+The default Makefile workflow evaluates a broad catalog of 44 explicit local
+Ollama tags, **plus any additional installed generative models**. It evaluates
+memory and disk headroom before downloading, pulls missing candidates through
+Ollama's local `/api/pull` endpoint, then runs repeated measurements for each.
+Pull failures and runtime failures are recorded and do not abort subsequent models.
+**No model is downloaded by the ordinary `llm-bench run` or `compare` commands.**
+
+```console
+make setup
+make models
+make benchmark-start                  # auto-pull eligible catalog models; 50 repetitions
+make benchmark-status                 # tmux session active or stopped
+make benchmark-logs                   # latest benchmark messages
+make benchmark-stop                   # stops bench process, not Ollama itself
+make benchmark-export                 # tidy CSV/JSONL for pandas/PyMC
+```
+
+To benchmark everything **already installed**, without downloading:
+
+```console
+make benchmark-start MODELS=installed REPEAT=50
+```
+
+To benchmark only selected installed tags:
+
+```console
+make benchmark-start MODELS=qwen3.5:9b,qwen3.5:35b REPEAT=50
+```
+
+Override `NUM_CTX=16384`, `NUM_PREDICT=512`, or `THINK=on` if needed.
+Use `CATALOG_FILE=/path/to/extra-models.json` to add local Ollama tags
+(`[{"name":"custom:8b","size_gb":5.5}]`), with an estimated artifact size.
+The default store path is `OLLAMA_MODELS` or `~/.ollama/models`; if Ollama
+runs as a system service with a different storage location, set
+`MODEL_DIR=/path/to/actual/ollama/models` for accurate disk checks.
+
+**Capacity caveats:** 128 GB unified RAM does not imply every 70B/120B model
+will run efficiently or load at every context size. The fit preflight conservatively
+reserves 24 GiB of RAM plus 30% above estimated weight sizes, and reserves
+20 GiB of disk plus 15% above advertised model artifacts. Published sizes can
+change; neither heuristic certifies a successful load or full GPU residency.
+The catalog deliberately excludes cloud-only and obviously oversized variants.
+The public Ollama library contains many thousands of tags: this is an expandable
+curated set, **not an exhaustive remote registry crawler**. Automatically
+downloading the entire eligible set may consume hundreds of GB of storage
+and considerable time. The system never deletes installed Ollama models.
+
+Each completed model writes a uniquely identified experiment JSON into ignored
+`results/`. Per-candidate status and skip/failure reasons are flushed immediately
+to `results/catalog-progress-*.jsonl`; an interruption retains the completed
+model experiments, but the current unfinished model may need rerunning.
+`benchmark-export` creates snapshot CSV/JSONL rows with model digest,
+experiment ID, metric, workload, repetition, timing, context, and cache status.
+Raw JSON remains the source of truth. See [model catalog notes](docs/model-catalog.md).
 
 ## Measurements and methodology
 
