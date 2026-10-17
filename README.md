@@ -108,6 +108,38 @@ model experiments, but the current unfinished model may need rerunning.
 experiment ID, metric, workload, repetition, timing, context, and cache status.
 Raw JSON remains the source of truth. See [model catalog notes](docs/model-catalog.md).
 
+## Optional physics reasoning evaluation
+
+Physics reasoning is a **separate workload**. It does not run during ordinary
+inference benchmarking. You can run it against all locally installed Ollama
+models using the same headless tmux workflow:
+
+```bash
+make physics-start                                  # SciBench, 50 questions, 3 attempts
+make physics-status
+make physics-logs
+make physics-stop
+make physics-results
+make physics-start PHYSICS_DATASET=ugphysics PHYSICS_QUESTIONS=200
+make physics-start PHYSICS_DATASET=phybench PHYSICS_QUESTIONS=100
+```
+
+Supported optional datasets: SciBench, UGPhysics, and the 100 reference-bearing
+questions released for PHYBench. Each run fetches official source data into
+ignored `results/datasets/` once. Attempts append to per-dataset JSONL files
+in `results/physics/` and can be analyzed with pandas, Jupyter or PyMC. The
+runner retains original prompts, model completions, reference answers, source
+hashes, model digests, tokens, latency, and correctness metadata.
+
+**Scoring limitation:** The implemented scorer is explicitly a *local numeric
+proxy*, not the official benchmark evaluator. Numeric references are checked
+with 1% relative tolerance. Unsupported symbolic or multi-part answers are
+recorded as unscored, never silently marked incorrect. PHYBench's EED partial
+credit and UGPhysics's official hybrid evaluator are not yet implemented.
+
+See [physics benchmark methods](docs/physics-benchmarks.md) for datasets,
+licensing, completeness, reproducibility, and analysis limitations.
+
 ## Measurements and methodology
 
 - Generation throughput uses Ollama `eval_count / eval_duration`.
