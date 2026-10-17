@@ -321,7 +321,7 @@ def run(
     if missing:
         raise ValueError(f"Missing installed Ollama model(s): {', '.join(missing)}")
     output.parent.mkdir(parents=True, exist_ok=True)
-    already: set[tuple[str, str, int]] = set()
+    already: set[tuple[str, str, str, int]] = set()
     config = {
         "dataset": dataset,
         "question_limit": max_questions,
@@ -344,6 +344,7 @@ def run(
             if previous.get("config_id") == config_id:
                 already.add(
                     (
+                        str(previous.get("model")),
                         str(previous.get("model_digest")),
                         str(previous.get("question_id")),
                         int(previous.get("repetition")),
@@ -356,7 +357,7 @@ def run(
             digest = str(details.get("digest") or "unknown")
             for question in questions:
                 for iteration in range(1, repeat + 1):
-                    key = (digest, question.question_id, iteration)
+                    key = (model, digest, question.question_id, iteration)
                     if key in already:
                         counters["resumed"] += 1
                         continue
@@ -446,18 +447,19 @@ def run(
     return counters
 
 
-def summary(path: Path) -> dict[str, dict[str, int | float | None]]:
-    """Avoid silently dropping inference/answer-extraction failures from accuracy."""
-    groups: dict[str, list[dict[str, Any]]] = {}
+def summary(path: Path) -> dict[tuple[str, str], dict[str, int | float | None]]:
+    """Keep configurations separate; report explicit scored/unscored/error denominators."""
+    groups: dict[tuple[str, str], list[dict[str, Any]]] = {}
     for line in path.read_text(encoding="utf-8").splitlines():
         if line.strip():
             row = json.loads(line)
-            groups.setdefault(str(row["model"]), []).append(row)
-    result: dict[str, dict[str, int | float | None]] = {}
-    for model, rows in groups.items():
+            key = (str(row["model"]), str(row["config_id"]))
+            groups.setdefault(key, []).append(row)
+    result: dict[tuple[str, str], dict[str, int | float | None]] = {}
+    for key, rows in groups.items():
         eligible = [r for r in rows if r["score_status"] in ("scored", "invalid_prediction")]
         correct = sum(r["correct"] is True for r in eligible)
-        result[model] = {
+        result[key] = {
             "attempts": len(rows),
             "scored": len(eligible),
             "correct": correct,
