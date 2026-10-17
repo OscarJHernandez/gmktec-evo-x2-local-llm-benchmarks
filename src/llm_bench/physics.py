@@ -164,12 +164,12 @@ def load_questions(dataset: str, root: Path) -> list[Question]:
                 qid = _field(entry, "index")
                 topic = _field(entry, "topic", "subject") or path.stem
             else:
-                prompt = _field(entry, "question", "problem", "Question", "problem_text")
+                prompt = _field(entry, "content", "question", "problem", "Question", "problem_text")
                 reference = _field(
                     entry, "reference_answer", "final_answer", "answer", "Answer", "gt"
                 )
                 qid = _field(entry, "id", "index", "question_id")
-                topic = _field(entry, "subject", "category", "topic") or "physics"
+                topic = _field(entry, "tag", "subject", "category", "topic") or "physics"
             if not isinstance(prompt, str) or not prompt.strip():
                 # Never invent questions for unknown benchmark schema.
                 raise ValueError(f"Unrecognized {dataset} question field in {path}:{index}")
