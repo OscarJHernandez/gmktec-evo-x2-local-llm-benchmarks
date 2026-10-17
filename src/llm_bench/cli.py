@@ -25,6 +25,9 @@ from llm_bench.model_catalog import (
 )
 from llm_bench.models import BenchmarkConfig
 from llm_bench.observations import export_jsonl, export_observations
+from llm_bench.physics import DATASETS, prepare as prepare_physics
+from llm_bench.physics import run as run_physics
+from llm_bench.physics import summary as physics_summary
 from llm_bench.persistence import export_csv, load_experiments, save_experiment
 from llm_bench.report import generate_report
 from llm_bench.runner import run_benchmark
@@ -396,6 +399,91 @@ def _run(
         csv_path = output.with_suffix(".csv")
         export_csv([experiment], csv_path)
         console.print(f"Saved CSV: {csv_path}")
+
+
+@app.command("physics-prepare")
+def physics_prepare(
+    dataset: str = typer.Option("scibench", "--dataset", help="scibench, ugphysics, phybench"),
+    data_dir: Path = typer.Option(DEFAULT_RESULTS / "datasets", "--data-dir"),
+) -> None:
+    """Download a selected physics dataset once from its official public repository."""
+    if dataset not in DATASETS:
+        raise typer.BadParameter(f"Choose one of: {', '.join(DATASETS)}")
+    try:
+        paths = prepare_physics(dataset, data_dir)
+    except (OSError, ValueError, RuntimeError) as exc:
+        console.print(f"[red]Physics dataset download failed: {exc}[/red]")
+        raise typer.Exit(code=1) from exc
+    console.print(f"Physics dataset {dataset}: {len(paths)} cached source file(s) in {data_dir}")
+
+
+@app.command("physics-run")
+def physics_benchmark(
+    dataset: str = typer.Option("scibench", "--dataset"),
+    models: str = typer.Option("installed", "--models", help="installed or comma-separated tags"),
+    repeat: int = typer.Option(3, "--repeat", min=1, max=100),
+    max_questions: int = typer.Option(50, "--max-questions", min=1),
+    seed: int = typer.Option(42, "--seed"),
+    temperature: float = typer.Option(0.3, "--temperature", min=0.0, max=2.0),
+    num_ctx: int = typer.Option(8192, "--num-ctx", min=1),
+    num_predict: int = typer.Option(1024, "--num-predict", min=1),
+    think: bool = typer.Option(False, "--think/--no-think"),
+    fetch: bool = typer.Option(False, "--fetch/--no-fetch", help="Explicitly fetch dataset"),
+    data_dir: Path = typer.Option(DEFAULT_RESULTS / "datasets", "--data-dir"),
+    output_dir: Path = typer.Option(DEFAULT_RESULTS / "physics", "--output-dir"),
+    api_url: str = typer.Option(DEFAULT_API, "--api-url"),
+) -> None:
+    """Run optional physics reasoning evaluation; append resumable raw JSONL."""
+    if dataset not in DATASETS:
+        raise typer.BadParameter(f"Choose one of: {', '.join(DATASETS)}")
+    names = [name.strip() for name in models.split(",") if name.strip()]
+    if not names or ("installed" in names and len(names) != 1):
+        raise typer.BadParameter("Use 'installed' or comma-separated model tags")
+    output = output_dir / f"{dataset}-attempts.jsonl"
+    try:
+        if fetch:
+            prepare_physics(dataset, data_dir)
+        counts = run_physics(
+            dataset=dataset, models=names, root=data_dir, output=output,
+            repeat=repeat, max_questions=max_questions, seed=seed,
+            temperature=temperature, num_ctx=num_ctx, num_predict=num_predict,
+            think=think, api_url=api_url,
+        )
+    except (OSError, ValueError, OllamaError, RuntimeError) as exc:
+        console.print(f"[red]Physics benchmark failed: {exc}[/red]")
+        raise typer.Exit(code=1) from exc
+    console.print(f"Physics attempts: {counts}. Raw data: {output}")
+    console.print("Scores are a local numeric proxy, not official benchmark scores.")
+
+
+@app.command("physics-results")
+def physics_results(
+    dataset: str = typer.Option("scibench", "--dataset"),
+    output_dir: Path = typer.Option(DEFAULT_RESULTS / "physics", "--output-dir"),
+) -> None:
+    """Summarize local numerical correctness; retain all raw scored/unscored attempts."""
+    if dataset not in DATASETS:
+        raise typer.BadParameter(f"Choose one of: {', '.join(DATASETS)}")
+    path = output_dir / f"{dataset}-attempts.jsonl"
+    try:
+        results = physics_summary(path)
+    except (OSError, ValueError) as exc:
+        console.print(f"[red]Could not read physics results: {exc}[/red]")
+        raise typer.Exit(code=1) from exc
+    table = Table(
+        "Model", "Attempts", "Score eligible", "Correct", "Unscored",
+        "Inference errors", "Numeric proxy accuracy",
+    )
+    for model, row in sorted(results.items()):
+        accuracy = row["accuracy_numeric_proxy"]
+        table.add_row(
+            model, str(row["attempts"]), str(row["scored"]), str(row["correct"]),
+            str(row["unscored"]), str(row["inference_errors"]),
+            f"{accuracy:.2%}" if isinstance(accuracy, float) else "n/a",
+        )
+    console.print(table)
+    console.print(f"All attempts (including complete responses): {path}")
+
 
 
 if __name__ == "__main__":
