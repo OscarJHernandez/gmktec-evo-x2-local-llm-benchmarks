@@ -3,9 +3,9 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
-from uuid import uuid4
 from statistics import mean, median, stdev
 from typing import Any
+from uuid import uuid4
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
