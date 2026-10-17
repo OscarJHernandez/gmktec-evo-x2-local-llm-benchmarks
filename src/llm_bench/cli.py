@@ -11,8 +11,8 @@ from rich.table import Table
 
 from llm_bench.backends.base import InferenceBackend
 from llm_bench.backends.ollama import OllamaBackend, OllamaError
-from llm_bench.observations import export_observations, export_jsonl
 from llm_bench.models import BenchmarkConfig
+from llm_bench.observations import export_jsonl, export_observations
 from llm_bench.persistence import export_csv, load_experiments, save_experiment
 from llm_bench.report import generate_report
 from llm_bench.runner import run_benchmark
@@ -84,7 +84,17 @@ def run(
     think: bool = typer.Option(False, "--think/--no-think"),
 ) -> None:
     """Run default short-input, long-input, and long-generation workloads."""
-    _run(model, repeat, warmup, api_url, output_dir, csv, num_ctx=num_ctx, num_predict=num_predict, think=think)
+    _run(
+        model,
+        repeat,
+        warmup,
+        api_url,
+        output_dir,
+        csv,
+        num_ctx=num_ctx,
+        num_predict=num_predict,
+        think=think,
+    )
 
 
 @app.command()
@@ -116,7 +126,18 @@ def compare(
                 f"Models not installed: {', '.join(missing)}. No models were downloaded."
             )
         for name in names:
-            _run(name, repeat, warmup, api_url, output_dir, False, backend=backend, num_ctx=num_ctx, num_predict=num_predict, think=think)
+            _run(
+                name,
+                repeat,
+                warmup,
+                api_url,
+                output_dir,
+                False,
+                backend=backend,
+                num_ctx=num_ctx,
+                num_predict=num_predict,
+                think=think,
+            )
     except OllamaError as exc:
         console.print(f"[red]{exc}[/red]")
         raise typer.Exit(code=1) from exc
@@ -129,8 +150,12 @@ def report(
         DEFAULT_RESULTS, "--input", help="JSON file or results directory."
     ),
     csv_output: Path | None = typer.Option(None, "--csv", help="Optional CSV output path."),
-    observations: Path | None = typer.Option(None, "--observations", help="Tidy metric-per-row CSV for Bayesian analysis."),
-    jsonl: Path | None = typer.Option(None, "--jsonl", help="Tidy metric-per-row JSONL for Bayesian analysis."),
+    observations: Path | None = typer.Option(
+        None, "--observations", help="Tidy metric-per-row CSV for Bayesian analysis."
+    ),
+    jsonl: Path | None = typer.Option(
+        None, "--jsonl", help="Tidy metric-per-row JSONL for Bayesian analysis."
+    ),
 ) -> None:
     """Create an offline HTML report from saved experiment JSON files."""
     try:
@@ -170,7 +195,15 @@ def _run(
     think: bool = False,
 ) -> None:
     try:
-        config = BenchmarkConfig(model=model, repeat=repeat, warmup=warmup, api_url=api_url, num_ctx=num_ctx, num_predict=num_predict, think=think)
+        config = BenchmarkConfig(
+            model=model,
+            repeat=repeat,
+            warmup=warmup,
+            api_url=api_url,
+            num_ctx=num_ctx,
+            num_predict=num_predict,
+            think=think,
+        )
         # Check model availability before starting a potentially lengthy experiment.
         client = backend or _backend(api_url)
         client.find_model(model)
@@ -179,7 +212,10 @@ def _run(
         console.print(f"[red]Benchmark could not start: {exc}[/red]")
         raise typer.Exit(code=1) from exc
     safe_model = "".join(char if char.isalnum() or char in "-_." else "_" for char in model)
-    output = output_dir / f"{safe_model}-{experiment.timestamp_utc:%Y%m%dT%H%M%SZ}-{experiment.experiment_id}.json"
+    output = (
+        output_dir
+        / f"{safe_model}-{experiment.timestamp_utc:%Y%m%dT%H%M%SZ}-{experiment.experiment_id}.json"
+    )
     save_experiment(experiment, output)
     table = Table("Workload", "Median output tok/s", "Median client TTFT", "Runs")
     for workload in sorted({item.workload for item in experiment.samples}):
