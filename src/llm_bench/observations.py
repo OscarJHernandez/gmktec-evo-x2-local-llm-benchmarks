@@ -59,7 +59,7 @@ def observation_rows(experiments: list[Experiment]) -> list[dict[str, Any]]:
                         "think": config.get("think"),
                         "seed": config.get("seed"),
                         "gpu": experiment.hardware.gpu,
-                            "total_ram_bytes": experiment.hardware.total_ram_bytes,
+                        "total_ram_bytes": experiment.hardware.total_ram_bytes,
                     }
                 )
     return rows
