@@ -24,7 +24,9 @@ from llm_bench.physics import (
 
 
 def _question(reference: Any = "4.5") -> Question:
-    return Question("scibench", "fund:1", "mechanics", "Find the force.", reference, "N", "abc", None)
+    return Question(
+        "scibench", "fund:1", "mechanics", "Find the force.", reference, "N", "abc", None
+    )
 
 
 @pytest.mark.parametrize(
@@ -64,18 +66,28 @@ def test_dataset_adapters_use_correct_public_fields(tmp_path: Path) -> None:
         ),
         "ugphysics": (
             "AtomicPhysics-en.jsonl",
-            [{
-                "index": 44, "problem": "Find the momentum", "answers": ["2"],
-                "subject": "AtomicPhysics", "topic": "Momentum",
-                "solution": "Do not leak the solution",
-            }],
+            [
+                {
+                    "index": 44,
+                    "problem": "Find the momentum",
+                    "answers": ["2"],
+                    "subject": "AtomicPhysics",
+                    "topic": "Momentum",
+                    "solution": "Do not leak the solution",
+                }
+            ],
         ),
         "phybench": (
             "PHYBench-fullques_v1.json",
-            [{
-                "id": 321, "content": "Derive the energy", "tag": "MECHANICS",
-                "solution": "Secret derivation", "answer": r"\frac12mv^2",
-            }],
+            [
+                {
+                    "id": 321,
+                    "content": "Derive the energy",
+                    "tag": "MECHANICS",
+                    "solution": "Secret derivation",
+                    "answer": r"\frac12mv^2",
+                }
+            ],
         ),
     }
     for dataset, (filename, rows) in fixtures.items():
@@ -142,9 +154,13 @@ def test_attempts_persist_resume_and_separate_references(tmp_path: Path) -> None
     output = tmp_path / "runs" / "attempts.jsonl"
     backend = FakeOllama()
     config: dict[str, Any] = {
-        "dataset": "phybench", "models": ["fake:1b"],
-        "root": base, "output": output,
-        "repeat": 3, "max_questions": 1, "backend": backend,
+        "dataset": "phybench",
+        "models": ["fake:1b"],
+        "root": base,
+        "output": output,
+        "repeat": 3,
+        "max_questions": 1,
+        "backend": backend,
     }
     counts = run(**config)
     assert counts == {"completed": 3, "resumed": 0, "errors": 0}
@@ -170,8 +186,15 @@ def test_phybench_symbolic_is_unscored_not_wrong(tmp_path: Path) -> None:
         encoding="utf-8",
     )
     output = tmp_path / "physics.jsonl"
-    run(dataset="phybench", models=["fake:1b"], root=root, output=output,
-        repeat=1, max_questions=1, backend=FakeOllama())
+    run(
+        dataset="phybench",
+        models=["fake:1b"],
+        root=root,
+        output=output,
+        repeat=1,
+        max_questions=1,
+        backend=FakeOllama(),
+    )
     record = json.loads(output.read_text().strip())
     assert record["score_status"] == "unscored_reference"
     assert record["correct"] is None
@@ -179,11 +202,7 @@ def test_phybench_symbolic_is_unscored_not_wrong(tmp_path: Path) -> None:
 
 def test_physics_commands_opt_in_and_not_default(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(cli, "prepare_physics", lambda *args: [Path("fake.json")])
-    result = CliRunner().invoke(
-        cli.app, ["physics-prepare", "--dataset", "scibench"]
-    )
+    result = CliRunner().invoke(cli.app, ["physics-prepare", "--dataset", "scibench"])
     assert result.exit_code == 0, result.output
-    result = CliRunner().invoke(
-        cli.app, ["physics-prepare", "--dataset", "not-a-benchmark"]
-    )
+    result = CliRunner().invoke(cli.app, ["physics-prepare", "--dataset", "not-a-benchmark"])
     assert result.exit_code != 0
