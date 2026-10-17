@@ -23,14 +23,31 @@ from llm_bench.backends.ollama import OllamaBackend, OllamaError
 
 SCORER_VERSION = "numeric-proxy-v1"
 UG_SUBJECTS = (
-    "AtomicPhysics", "ClassicalElectromagnetism", "ClassicalMechanics",
-    "Electrodynamics", "GeometricalOptics", "QuantumMechanics", "Relativity",
-    "SemiconductorPhysics", "Solid-StatePhysics", "StatisticalMechanics",
-    "TheoreticalMechanics", "Thermodynamics", "WaveOptics",
+    "AtomicPhysics",
+    "ClassicalElectromagnetism",
+    "ClassicalMechanics",
+    "Electrodynamics",
+    "GeometricalOptics",
+    "QuantumMechanics",
+    "Relativity",
+    "SemiconductorPhysics",
+    "Solid-StatePhysics",
+    "StatisticalMechanics",
+    "TheoreticalMechanics",
+    "Thermodynamics",
+    "WaveOptics",
 )
 SCI_SUBJECTS = (
-    "atkins", "calculus", "chemmc", "class", "diff",
-    "fund", "matter", "quan", "stat", "thermo",
+    "atkins",
+    "calculus",
+    "chemmc",
+    "class",
+    "diff",
+    "fund",
+    "matter",
+    "quan",
+    "stat",
+    "thermo",
 )
 DATASETS = ("scibench", "ugphysics", "phybench")
 
@@ -59,8 +76,7 @@ def dataset_sources(dataset: str) -> dict[str, str]:
     if dataset == "ugphysics":
         return {
             f"{s}-en.jsonl": (
-                "https://huggingface.co/datasets/UGPhysics/ugphysics/"
-                f"resolve/main/{s}/en.jsonl"
+                f"https://huggingface.co/datasets/UGPhysics/ugphysics/resolve/main/{s}/en.jsonl"
             )
             for s in UG_SUBJECTS
         }
@@ -239,18 +255,24 @@ def score(question: Question, response: str, *, rtol: float = 0.01) -> dict[str,
     prediction = final_numeric_answer(response)
     if reference is None:
         return {
-            "status": "unscored_reference", "correct": None,
-            "prediction": prediction, "reference_numeric": None,
+            "status": "unscored_reference",
+            "correct": None,
+            "prediction": prediction,
+            "reference_numeric": None,
         }
     if prediction is None:
         return {
-            "status": "invalid_prediction", "correct": False,
-            "prediction": None, "reference_numeric": reference,
+            "status": "invalid_prediction",
+            "correct": False,
+            "prediction": None,
+            "reference_numeric": reference,
         }
     correct = math.isclose(prediction, reference, rel_tol=rtol, abs_tol=1e-9)
     return {
-        "status": "scored", "correct": correct,
-        "prediction": prediction, "reference_numeric": reference,
+        "status": "scored",
+        "correct": correct,
+        "prediction": prediction,
+        "reference_numeric": reference,
     }
 
 
@@ -287,13 +309,11 @@ def run(
     rng.shuffle(questions)
     questions = questions[:max_questions]
     client = backend or OllamaBackend(api_url)
-    installed = {
-        str(x.get("name") or x.get("model")): x
-        for x in client.models()
-    }
+    installed = {str(x.get("name") or x.get("model")): x for x in client.models()}
     requested = (
         sorted(name for name in installed if "embed" not in name and "cloud" not in name)
-        if models == ["installed"] else list(dict.fromkeys(models))
+        if models == ["installed"]
+        else list(dict.fromkeys(models))
     )
     if not requested:
         raise ValueError("No eligible installed models")
@@ -303,11 +323,17 @@ def run(
     output.parent.mkdir(parents=True, exist_ok=True)
     already: set[tuple[str, str, int]] = set()
     config = {
-        "dataset": dataset, "question_limit": max_questions,
+        "dataset": dataset,
+        "question_limit": max_questions,
         "dataset_sha256": sorted(set(q.dataset_sha256 for q in questions)),
-        "repeat": repeat, "seed": seed, "temperature": temperature,
-        "num_ctx": num_ctx, "num_predict": num_predict, "think": think,
-        "scorer": SCORER_VERSION, "question_prompt_version": 1,
+        "repeat": repeat,
+        "seed": seed,
+        "temperature": temperature,
+        "num_ctx": num_ctx,
+        "num_predict": num_predict,
+        "think": think,
+        "scorer": SCORER_VERSION,
+        "question_prompt_version": 1,
     }
     config_id = hashlib.sha256(json.dumps(config, sort_keys=True).encode()).hexdigest()[:20]
     if output.exists():
@@ -316,11 +342,13 @@ def run(
                 continue
             previous = json.loads(line)
             if previous.get("config_id") == config_id:
-                already.add((
-                    str(previous.get("model_digest")),
-                    str(previous.get("question_id")),
-                    int(previous.get("repetition")),
-                ))
+                already.add(
+                    (
+                        str(previous.get("model_digest")),
+                        str(previous.get("question_id")),
+                        int(previous.get("repetition")),
+                    )
+                )
     counters = {"completed": 0, "resumed": 0, "errors": 0}
     with output.open("a", encoding="utf-8") as stream:
         for model in requested:
@@ -378,9 +406,11 @@ def run(
                     }
                     try:
                         result = client.generate(
-                            model, prompt,
+                            model,
+                            prompt,
                             options={
-                                "num_ctx": num_ctx, "num_predict": num_predict,
+                                "num_ctx": num_ctx,
+                                "num_predict": num_predict,
                                 "seed": seed + iteration - 1,
                                 "temperature": temperature,
                             },
@@ -389,20 +419,22 @@ def run(
                         payload = result.payload
                         response = str(payload.get("response") or "")
                         scored = score(question, response)
-                        record.update({
-                            "response": response,
-                            "score_status": scored["status"],
-                            "correct": scored["correct"],
-                            "predicted_numeric": scored["prediction"],
-                            "reference_numeric": scored["reference_numeric"],
-                            "client_duration_seconds": result.client_duration_seconds,
-                            "client_ttft_seconds": result.client_ttft_seconds,
-                            "prompt_tokens": payload.get("prompt_eval_count"),
-                            "output_tokens": payload.get("eval_count"),
-                            "prompt_eval_ns": payload.get("prompt_eval_duration"),
-                            "eval_ns": payload.get("eval_duration"),
-                            "server_total_ns": payload.get("total_duration"),
-                        })
+                        record.update(
+                            {
+                                "response": response,
+                                "score_status": scored["status"],
+                                "correct": scored["correct"],
+                                "predicted_numeric": scored["prediction"],
+                                "reference_numeric": scored["reference_numeric"],
+                                "client_duration_seconds": result.client_duration_seconds,
+                                "client_ttft_seconds": result.client_ttft_seconds,
+                                "prompt_tokens": payload.get("prompt_eval_count"),
+                                "output_tokens": payload.get("eval_count"),
+                                "prompt_eval_ns": payload.get("prompt_eval_duration"),
+                                "eval_ns": payload.get("eval_duration"),
+                                "server_total_ns": payload.get("total_duration"),
+                            }
+                        )
                         counters["completed"] += 1
                     except (OllamaError, OSError, ValueError) as exc:
                         record["error"] = str(exc)
@@ -426,10 +458,10 @@ def summary(path: Path) -> dict[str, dict[str, int | float | None]]:
         eligible = [r for r in rows if r["score_status"] in ("scored", "invalid_prediction")]
         correct = sum(r["correct"] is True for r in eligible)
         result[model] = {
-            "attempts": len(rows), "scored": len(eligible),
-            "correct": correct, "unscored": sum(
-                r["score_status"] == "unscored_reference" for r in rows
-            ),
+            "attempts": len(rows),
+            "scored": len(eligible),
+            "correct": correct,
+            "unscored": sum(r["score_status"] == "unscored_reference" for r in rows),
             "inference_errors": sum(r["score_status"] == "inference_error" for r in rows),
             "accuracy_numeric_proxy": correct / len(eligible) if eligible else None,
         }
