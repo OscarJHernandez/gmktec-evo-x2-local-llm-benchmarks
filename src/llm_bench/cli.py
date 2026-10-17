@@ -155,7 +155,6 @@ def compare(
         raise typer.Exit(code=1) from exc
 
 
-
 @app.command("catalog-run")
 def catalog_run(
     repeat: int = typer.Option(50, min=1, max=100),
@@ -186,9 +185,7 @@ def catalog_run(
         client = _backend(api_url)
         installed = client.models()
         candidates = (
-            select_installed(installed)
-            if installed_only
-            else catalog_candidates(catalog_file)
+            select_installed(installed) if installed_only else catalog_candidates(catalog_file)
         )
         if not installed_only:
             known_names = {candidate.name for candidate in candidates}
@@ -202,9 +199,7 @@ def catalog_run(
         console.print(f"[red]Catalog preflight failed: {exc}[/red]")
         raise typer.Exit(code=1) from exc
 
-    installed_by_name = {
-        str(item.get("name") or item.get("model")): item for item in installed
-    }
+    installed_by_name = {str(item.get("name") or item.get("model")): item for item in installed}
     output_dir.mkdir(parents=True, exist_ok=True)
     progress = output_dir / (
         f"catalog-progress-{datetime.now(timezone.utc):%Y%m%dT%H%M%SZ}-{uuid4().hex}.jsonl"
@@ -248,8 +243,9 @@ def catalog_run(
             if reason is not None:
                 record["status"], record["reason"] = "skipped_fit", reason
             elif metadata is None and not auto_pull:
-                record["status"], record["reason"] = "skipped_not_installed", (
-                    "Enable --auto-pull to download candidate"
+                record["status"], record["reason"] = (
+                    "skipped_not_installed",
+                    ("Enable --auto-pull to download candidate"),
                 )
             else:
                 try:
@@ -282,9 +278,10 @@ def catalog_run(
                 skipped += 1
             stream.write(json.dumps(record, ensure_ascii=False) + "\n")
             stream.flush()
-            console.print(f"{name}: {record['status']}" + (
-                f" ({record['reason']})" if record["reason"] else ""
-            ))
+            console.print(
+                f"{name}: {record['status']}"
+                + (f" ({record['reason']})" if record["reason"] else "")
+            )
     console.print(
         f"[bold]Catalog complete[/bold]: {successful} passed, "
         f"{skipped} skipped, {failed} failed. Status records: {progress}"
