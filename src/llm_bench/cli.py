@@ -444,10 +444,18 @@ def physics_benchmark(
         if fetch:
             prepare_physics(dataset, data_dir)
         counts = run_physics(
-            dataset=dataset, models=names, root=data_dir, output=output,
-            repeat=repeat, max_questions=max_questions, seed=seed,
-            temperature=temperature, num_ctx=num_ctx, num_predict=num_predict,
-            think=think, api_url=api_url,
+            dataset=dataset,
+            models=names,
+            root=data_dir,
+            output=output,
+            repeat=repeat,
+            max_questions=max_questions,
+            seed=seed,
+            temperature=temperature,
+            num_ctx=num_ctx,
+            num_predict=num_predict,
+            think=think,
+            api_url=api_url,
         )
     except (OSError, ValueError, OllamaError, RuntimeError) as exc:
         console.print(f"[red]Physics benchmark failed: {exc}[/red]")
@@ -471,19 +479,27 @@ def physics_results(
         console.print(f"[red]Could not read physics results: {exc}[/red]")
         raise typer.Exit(code=1) from exc
     table = Table(
-        "Model", "Attempts", "Score eligible", "Correct", "Unscored",
-        "Inference errors", "Numeric proxy accuracy",
+        "Model",
+        "Attempts",
+        "Score eligible",
+        "Correct",
+        "Unscored",
+        "Inference errors",
+        "Numeric proxy accuracy",
     )
     for model, row in sorted(results.items()):
         accuracy = row["accuracy_numeric_proxy"]
         table.add_row(
-            model, str(row["attempts"]), str(row["scored"]), str(row["correct"]),
-            str(row["unscored"]), str(row["inference_errors"]),
+            model,
+            str(row["attempts"]),
+            str(row["scored"]),
+            str(row["correct"]),
+            str(row["unscored"]),
+            str(row["inference_errors"]),
             f"{accuracy:.2%}" if isinstance(accuracy, float) else "n/a",
         )
     console.print(table)
     console.print(f"All attempts (including complete responses): {path}")
-
 
 
 if __name__ == "__main__":
