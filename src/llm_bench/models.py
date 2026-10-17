@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
+from uuid import uuid4
 from statistics import mean, median, stdev
 from typing import Any
 
@@ -62,6 +63,7 @@ class HardwareInfo(BaseModel):
 
 
 class Sample(BaseModel):
+    timestamp_utc: datetime | None = None
     workload: str
     phase: str
     repetition: int
@@ -104,7 +106,8 @@ class Summary(BaseModel):
 
 
 class Experiment(BaseModel):
-    schema_version: str = "1.0"
+    schema_version: str = "1.1"
+    experiment_id: str = Field(default_factory=lambda: uuid4().hex)
     framework_version: str
     timestamp_utc: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     model: str
