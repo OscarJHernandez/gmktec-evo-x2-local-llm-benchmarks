@@ -240,13 +240,13 @@ def catalog_run(
                 "status": "pending",
                 "reason": None,
             }
-            if reason is not None:
-                record["status"], record["reason"] = "skipped_fit", reason
-            elif metadata is None and not auto_pull:
+            if metadata is None and not auto_pull:
                 record["status"], record["reason"] = (
                     "skipped_not_installed",
-                    ("Enable --auto-pull to download candidate"),
+                    "Enable --auto-pull to download candidate",
                 )
+            elif reason is not None:
+                record["status"], record["reason"] = "skipped_fit", reason
             else:
                 try:
                     if metadata is None:
