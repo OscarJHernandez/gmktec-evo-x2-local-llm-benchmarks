@@ -174,7 +174,7 @@ def test_attempts_persist_resume_and_separate_references(tmp_path: Path) -> None
     second = run(**config)
     assert second == {"completed": 0, "resumed": 3, "errors": 0}
     assert len(output.read_text().splitlines()) == 3
-    assert summary(output)["fake:1b"]["accuracy_numeric_proxy"] == 1.0
+    assert list(summary(output).values())[0]["accuracy_numeric_proxy"] == 1.0
 
 
 def test_phybench_symbolic_is_unscored_not_wrong(tmp_path: Path) -> None:
