@@ -36,18 +36,9 @@ def test_fit_has_memory_and_storage_headroom() -> None:
     large = Candidate("test:large", 120.0)
     ram = 128 * 1024**3
     assert fit_reason(small, total_ram_bytes=ram, free_disk_bytes=100 * 1024**3) is None
-    assert "memory" in str(
-        fit_reason(large, total_ram_bytes=ram, free_disk_bytes=500 * 1024**3)
-    )
-    assert "storage" in str(
-        fit_reason(small, total_ram_bytes=ram, free_disk_bytes=10 * 1024**3)
-    )
-    assert (
-        fit_reason(
-            small, total_ram_bytes=ram, free_disk_bytes=0, already_installed=True
-        )
-        is None
-    )
+    assert "memory" in str(fit_reason(large, total_ram_bytes=ram, free_disk_bytes=500 * 1024**3))
+    assert "storage" in str(fit_reason(small, total_ram_bytes=ram, free_disk_bytes=10 * 1024**3))
+    assert fit_reason(small, total_ram_bytes=ram, free_disk_bytes=0, already_installed=True) is None
 
 
 def test_catalog_extension_validates_sizes_and_filters_cloud(tmp_path: Path) -> None:
@@ -96,7 +87,8 @@ def test_catalog_auto_pulls_skips_failures_and_records_progress(
     completed: list[str] = []
     monkeypatch.setattr(cli, "_backend", lambda api_url: backend)
     monkeypatch.setattr(
-        cli, "catalog_candidates",
+        cli,
+        "catalog_candidates",
         lambda extra: [
             Candidate("tiny:1b", 1.0),
             Candidate("huge:999b", 250.0),
