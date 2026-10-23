@@ -13,6 +13,7 @@ import typer
 from rich.console import Console
 from rich.table import Table
 
+from llm_bench.analytical import export_snapshot
 from llm_bench.backends.base import InferenceBackend
 from llm_bench.backends.ollama import OllamaBackend, OllamaError
 from llm_bench.model_catalog import (
@@ -32,6 +33,7 @@ from llm_bench.physics import run as run_physics
 from llm_bench.physics import summary as physics_summary
 from llm_bench.report import generate_report
 from llm_bench.runner import run_benchmark
+from llm_bench.storage import clean_results, locked_command
 
 app = typer.Typer(no_args_is_help=True, help="Reproducible benchmarks for local language models.")
 console = Console()
@@ -58,6 +60,23 @@ def doctor(api_url: str = typer.Option(DEFAULT_API, "--api-url", help="Ollama AP
         f"{info.ram_percent if info.ram_percent is not None else 'unknown'}% in use"
     )
     console.print(f"[bold]GPU[/bold] {info.gpu or 'not detected (optional)'}")
+    from llm_bench.telemetry.collectors import Collector
+
+    try:
+        collector = Collector()
+        console.print(f"Optional SMI: {collector.smi or 'not installed'}")
+        table = Table("Metric", "Device", "Unit", "Source / unavailable reason")
+        for cap in collector.capabilities:
+            table.add_row(
+                cap.metric, cap.device, cap.unit, cap.source if cap.available else cap.reason
+            )
+        console.print(table)
+    except (OSError, ValueError, RuntimeError) as exc:
+        console.print(f"Telemetry discovery unavailable: {type(exc).__name__}")
+    console.print(
+        "Energy requires reliable counters or complete power coverage; "
+        "APU power may cover CPU and GPU."
+    )
     try:
         console.print(f"[green]Ollama[/green] {_backend(api_url).health()} at configured endpoint")
     except OllamaError as exc:
@@ -86,6 +105,7 @@ def models(api_url: str = typer.Option(DEFAULT_API, "--api-url", help="Ollama AP
 
 
 @app.command()
+@locked_command
 def run(
     model: str = typer.Option(..., help="Installed Ollama model name."),
     repeat: int = typer.Option(5, min=1, max=100, help="Measured repetitions per workload."),
@@ -98,6 +118,8 @@ def run(
     num_ctx: int = typer.Option(4096, min=1),
     num_predict: int = typer.Option(128, min=1),
     think: bool = typer.Option(False, "--think/--no-think"),
+    telemetry: bool = typer.Option(True, "--telemetry/--no-telemetry"),
+    telemetry_interval: float = typer.Option(1.0, "--telemetry-interval", min=0.001),
 ) -> None:
     """Run default short-input, long-input, and long-generation workloads."""
     _run(
@@ -110,10 +132,13 @@ def run(
         num_ctx=num_ctx,
         num_predict=num_predict,
         think=think,
+        telemetry_enabled=telemetry,
+        telemetry_interval_seconds=telemetry_interval,
     )
 
 
 @app.command()
+@locked_command
 def compare(
     models: str = typer.Option(..., help="Comma-separated installed Ollama model names."),
     repeat: int = typer.Option(5, min=1, max=100, help="Measured repetitions per workload."),
@@ -125,6 +150,8 @@ def compare(
     num_ctx: int = typer.Option(4096, min=1),
     num_predict: int = typer.Option(128, min=1),
     think: bool = typer.Option(False, "--think/--no-think"),
+    telemetry: bool = typer.Option(True, "--telemetry/--no-telemetry"),
+    telemetry_interval: float = typer.Option(1.0, "--telemetry-interval", min=0.001),
 ) -> None:
     """Benchmark multiple installed models sequentially and compare results."""
     names = list(dict.fromkeys(name.strip() for name in models.split(",") if name.strip()))
@@ -153,6 +180,8 @@ def compare(
                 num_ctx=num_ctx,
                 num_predict=num_predict,
                 think=think,
+                telemetry_enabled=telemetry,
+                telemetry_interval_seconds=telemetry_interval,
             )
     except OllamaError as exc:
         console.print(f"[red]{exc}[/red]")
@@ -160,6 +189,7 @@ def compare(
 
 
 @app.command("catalog-run")
+@locked_command
 def catalog_run(
     repeat: int = typer.Option(50, min=1, max=100),
     warmup: int = typer.Option(3, min=0, max=20),
@@ -172,6 +202,8 @@ def catalog_run(
     installed_only: bool = typer.Option(False, "--installed-only"),
     catalog_file: Path | None = typer.Option(None, "--catalog-file"),
     model_dir: Path | None = typer.Option(None, "--model-dir"),
+    telemetry: bool = typer.Option(True, "--telemetry/--no-telemetry"),
+    telemetry_interval: float = typer.Option(1.0, "--telemetry-interval", min=0.001),
 ) -> None:
     """Benchmark the curated fit-checked Ollama catalog plus installed models.
 
@@ -269,6 +301,8 @@ def catalog_run(
                         num_ctx=num_ctx,
                         num_predict=num_predict,
                         think=think,
+                        telemetry_enabled=telemetry,
+                        telemetry_interval_seconds=telemetry_interval,
                     )
                     record["status"] = "completed"
                     successful += 1
@@ -295,6 +329,7 @@ def catalog_run(
 
 
 @app.command()
+@locked_command
 def report(
     output: Path = typer.Option(Path("report.html"), "--output", help="Output HTML report path."),
     input_dir: Path = typer.Option(
@@ -344,6 +379,8 @@ def _run(
     num_ctx: int = 4096,
     num_predict: int = 128,
     think: bool = False,
+    telemetry_enabled: bool = True,
+    telemetry_interval_seconds: float = 1.0,
 ) -> None:
     try:
         config = BenchmarkConfig(
@@ -354,6 +391,8 @@ def _run(
             num_ctx=num_ctx,
             num_predict=num_predict,
             think=think,
+            telemetry_enabled=telemetry_enabled,
+            telemetry_interval_seconds=telemetry_interval_seconds,
         )
         # Check model availability before starting a potentially lengthy experiment.
         client = backend or _backend(api_url)
@@ -400,6 +439,36 @@ def _run(
         csv_path = output.with_suffix(".csv")
         export_csv([experiment], csv_path)
         console.print(f"Saved CSV: {csv_path}")
+
+
+@app.command("export")
+@locked_command
+def export_results(
+    input_dir: Path = typer.Option(DEFAULT_RESULTS, "--input"),
+    output_dir: Path = typer.Option(DEFAULT_RESULTS / "exports", "--output-dir"),
+) -> None:
+    """Export an immutable Parquet/CSV/JSONL/HTML analytical snapshot."""
+    destination = output_dir / f"{datetime.now(timezone.utc):%Y%m%dT%H%M%SZ}-{uuid4().hex}"
+    path = export_snapshot(load_experiments([input_dir]), destination)
+    console.print(f"Export snapshot: {path}")
+
+
+@app.command("clean")
+def clean(
+    output_dir: Path = typer.Option(DEFAULT_RESULTS, "--output-dir"),
+    dry_run: bool = typer.Option(False, "--dry-run"),
+) -> None:
+    """Clear inference outputs; preserve models, datasets, physics, and unknown files."""
+    try:
+        files, preserved = clean_results(output_dir, dry_run=dry_run)
+    except (OSError, ValueError) as exc:
+        console.print(f"Cleanup failed: {exc}")
+        raise typer.Exit(code=1) from exc
+    for path in files:
+        console.print(f"{'Would remove' if dry_run else 'Removed'}: {path}")
+    console.print(f"{'Would remove' if dry_run else 'Removed'} {len(files)} files.")
+    for path in preserved:
+        console.print(f"Preserved: {path}")
 
 
 @app.command("physics-prepare")

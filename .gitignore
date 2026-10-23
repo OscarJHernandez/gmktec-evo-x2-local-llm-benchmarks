@@ -16,3 +16,5 @@ results/
 *.csv
 *.html
 !examples/sample-report.html
+
+.ipynb_checkpoints/

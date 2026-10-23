@@ -60,6 +60,28 @@ class OllamaBackend:
                 return model
         raise OllamaError(f"Model {name!r} is not installed; no model was downloaded.")
 
+    def residency(self, model: str) -> dict[str, Any] | None:
+        """Optional model residency, outside generation timing, with a short timeout."""
+        try:
+            client = OllamaBackend(self.api_url, min(self.timeout, 0.5))
+            payload = client._request("/api/ps")
+            models = payload.get("models") if isinstance(payload, dict) else None
+            if not isinstance(models, list):
+                return None
+            for item in models:
+                if isinstance(item, dict) and item.get("name") in {model, f"{model}:latest"}:
+                    result: dict[str, Any] = {"resident": True}
+                    for key in ("name", "digest"):
+                        value = item.get(key)
+                        result[key] = value if isinstance(value, str) else None
+                    for key in ("size", "size_vram", "context_length"):
+                        value = item.get(key)
+                        result[key] = value if type(value) is int and value >= 0 else None
+                    return result
+            return {"resident": False}
+        except OllamaError:
+            return None
+
     def pull(self, model: str) -> None:
         """Download one Ollama tag, consuming progress messages without buffering them."""
         request = Request(
