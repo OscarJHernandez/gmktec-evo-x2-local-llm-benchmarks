@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from datetime import datetime, timezone
 from statistics import mean, median, stdev
 from typing import Any
@@ -12,13 +13,25 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 from llm_bench.telemetry.schemas import Capability, Observation, SamplingStats, TelemetrySummary
 
 
+def valid_model_name(value: str) -> bool:
+    """Accept local Ollama tags and one optional community namespace, never paths/URLs."""
+    return (
+        re.fullmatch(
+            r"(?:[A-Za-z0-9][A-Za-z0-9_.-]*/)?[A-Za-z0-9][A-Za-z0-9_.-]*"
+            r"(?::[A-Za-z0-9_][A-Za-z0-9_.-]*)?",
+            value,
+        )
+        is not None
+    )
+
+
 class BenchmarkConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     model: str = Field(min_length=1)
     api_url: str = "http://localhost:11434"
-    repeat: int = Field(default=5, ge=1, le=100)
-    warmup: int = Field(default=1, ge=0, le=20)
+    repeat: int = Field(default=50, ge=1, le=1000)
+    warmup: int = Field(default=3, ge=0, le=20)
     num_ctx: int = Field(default=4096, ge=1)
     num_predict: int = Field(default=128, ge=1, le=32768)
     seed: int = 42
@@ -32,7 +45,7 @@ class BenchmarkConfig(BaseModel):
     @field_validator("model")
     @classmethod
     def model_name_is_safe(cls, value: str) -> str:
-        if any(char.isspace() for char in value) or "/" in value or "\\" in value:
+        if not valid_model_name(value):
             raise ValueError("model must be a local Ollama model name, not a path or URL")
         return value
 

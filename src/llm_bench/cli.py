@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import json
 import os
+from collections.abc import Callable
+from contextlib import nullcontext
 from datetime import datetime, timezone
 from pathlib import Path
 from urllib.parse import urlparse
@@ -16,13 +18,17 @@ from rich.table import Table
 from llm_bench.analytical import export_snapshot
 from llm_bench.backends.base import InferenceBackend
 from llm_bench.backends.ollama import OllamaBackend, OllamaError
+from llm_bench.discovery import discover_library
 from llm_bench.model_catalog import (
+    Candidate,
     catalog_candidates,
     fit_reason,
     free_storage_bytes,
     model_storage_dir,
+    normalize_digest,
     select_installed,
     system_ram_bytes,
+    unique_candidates,
 )
 from llm_bench.models import BenchmarkConfig
 from llm_bench.observations import export_jsonl, export_observations
@@ -31,6 +37,7 @@ from llm_bench.physics import DATASETS
 from llm_bench.physics import prepare as prepare_physics
 from llm_bench.physics import run as run_physics
 from llm_bench.physics import summary as physics_summary
+from llm_bench.progress import PlannedModel, Progress, status_text
 from llm_bench.report import generate_report
 from llm_bench.runner import run_benchmark
 from llm_bench.storage import clean_results, locked_command
@@ -108,8 +115,8 @@ def models(api_url: str = typer.Option(DEFAULT_API, "--api-url", help="Ollama AP
 @locked_command
 def run(
     model: str = typer.Option(..., help="Installed Ollama model name."),
-    repeat: int = typer.Option(5, min=1, max=100, help="Measured repetitions per workload."),
-    warmup: int = typer.Option(1, min=0, max=20, help="Warm-up repetitions per workload."),
+    repeat: int = typer.Option(50, min=1, max=1000, help="Measured repetitions per workload."),
+    warmup: int = typer.Option(3, min=0, max=20, help="Warm-up repetitions per workload."),
     api_url: str = typer.Option(DEFAULT_API, "--api-url", help="Ollama API URL."),
     output_dir: Path = typer.Option(
         DEFAULT_RESULTS, help="Directory for machine-readable results."
@@ -122,27 +129,36 @@ def run(
     telemetry_interval: float = typer.Option(1.0, "--telemetry-interval", min=0.001),
 ) -> None:
     """Run default short-input, long-input, and long-generation workloads."""
-    _run(
-        model,
-        repeat,
-        warmup,
-        api_url,
-        output_dir,
-        csv,
-        num_ctx=num_ctx,
-        num_predict=num_predict,
-        think=think,
-        telemetry_enabled=telemetry,
-        telemetry_interval_seconds=telemetry_interval,
-    )
+    with Progress(output_dir, repeat, warmup) as tracker:
+        tracker.update(models=[PlannedModel(name=model)])
+        tracker.start_model(model)
+        try:
+            _run(
+                model,
+                repeat,
+                warmup,
+                api_url,
+                output_dir,
+                csv,
+                num_ctx=num_ctx,
+                num_predict=num_predict,
+                think=think,
+                telemetry_enabled=telemetry,
+                telemetry_interval_seconds=telemetry_interval,
+                progress=tracker.invocation,
+            )
+        except (OllamaError, typer.Exit, OSError, ValueError):
+            tracker.terminal("failed")
+            raise
+        tracker.terminal("completed")
 
 
 @app.command()
 @locked_command
 def compare(
     models: str = typer.Option(..., help="Comma-separated installed Ollama model names."),
-    repeat: int = typer.Option(5, min=1, max=100, help="Measured repetitions per workload."),
-    warmup: int = typer.Option(1, min=0, max=20, help="Warm-up repetitions per workload."),
+    repeat: int = typer.Option(50, min=1, max=1000, help="Measured repetitions per workload."),
+    warmup: int = typer.Option(3, min=0, max=20, help="Warm-up repetitions per workload."),
     api_url: str = typer.Option(DEFAULT_API, "--api-url", help="Ollama API URL."),
     output_dir: Path = typer.Option(
         DEFAULT_RESULTS, help="Directory for machine-readable results."
@@ -152,6 +168,7 @@ def compare(
     think: bool = typer.Option(False, "--think/--no-think"),
     telemetry: bool = typer.Option(True, "--telemetry/--no-telemetry"),
     telemetry_interval: float = typer.Option(1.0, "--telemetry-interval", min=0.001),
+    dry_run: bool = typer.Option(False, "--dry-run", help="Preview selected installed models."),
 ) -> None:
     """Benchmark multiple installed models sequentially and compare results."""
     names = list(dict.fromkeys(name.strip() for name in models.split(",") if name.strip()))
@@ -168,21 +185,49 @@ def compare(
             raise OllamaError(
                 f"Models not installed: {', '.join(missing)}. No models were downloaded."
             )
-        for name in names:
-            _run(
-                name,
-                repeat,
-                warmup,
-                api_url,
-                output_dir,
-                False,
-                backend=backend,
-                num_ctx=num_ctx,
-                num_predict=num_predict,
-                think=think,
-                telemetry_enabled=telemetry,
-                telemetry_interval_seconds=telemetry_interval,
+        if dry_run:
+            for name in names:
+                BenchmarkConfig(
+                    model=name,
+                    repeat=repeat,
+                    warmup=warmup,
+                    api_url=api_url,
+                    num_ctx=num_ctx,
+                    num_predict=num_predict,
+                    think=think,
+                    telemetry_enabled=telemetry,
+                    telemetry_interval_seconds=telemetry_interval,
+                )
+                console.print(f"Selected installed model: {name}", markup=False)
+            console.print(
+                f"{repeat} measured repetitions per workload, {warmup} warm-ups. "
+                "No models downloaded or benchmarked."
             )
+            return
+        with Progress(output_dir, repeat, warmup) as tracker:
+            tracker.update(models=[PlannedModel(name=name) for name in names])
+            for name in names:
+                tracker.start_model(name)
+                try:
+                    _run(
+                        name,
+                        repeat,
+                        warmup,
+                        api_url,
+                        output_dir,
+                        False,
+                        backend=backend,
+                        num_ctx=num_ctx,
+                        num_predict=num_predict,
+                        think=think,
+                        telemetry_enabled=telemetry,
+                        telemetry_interval_seconds=telemetry_interval,
+                        progress=tracker.invocation,
+                    )
+                except (OllamaError, typer.Exit, OSError, ValueError):
+                    tracker.terminal("failed")
+                    raise
+                tracker.terminal("completed")
     except OllamaError as exc:
         console.print(f"[red]{exc}[/red]")
         raise typer.Exit(code=1) from exc
@@ -191,7 +236,7 @@ def compare(
 @app.command("catalog-run")
 @locked_command
 def catalog_run(
-    repeat: int = typer.Option(50, min=1, max=100),
+    repeat: int = typer.Option(50, min=1, max=1000),
     warmup: int = typer.Option(3, min=0, max=20),
     api_url: str = typer.Option(DEFAULT_API, "--api-url"),
     output_dir: Path = typer.Option(DEFAULT_RESULTS, "--output-dir"),
@@ -200,132 +245,244 @@ def catalog_run(
     think: bool = typer.Option(False, "--think/--no-think"),
     auto_pull: bool = typer.Option(False, "--auto-pull/--no-auto-pull"),
     installed_only: bool = typer.Option(False, "--installed-only"),
+    discovery: str = typer.Option("library", help="Candidate source: library or curated."),
+    dry_run: bool = typer.Option(
+        False, "--dry-run", help="Preview selection without pulling or inference."
+    ),
     catalog_file: Path | None = typer.Option(None, "--catalog-file"),
     model_dir: Path | None = typer.Option(None, "--model-dir"),
     telemetry: bool = typer.Option(True, "--telemetry/--no-telemetry"),
     telemetry_interval: float = typer.Option(1.0, "--telemetry-interval", min=0.001),
 ) -> None:
-    """Benchmark the curated fit-checked Ollama catalog plus installed models.
-
-    Use --auto-pull to download missing models explicitly. Results and progress
-    are stored locally and each failed model does not block the next.
-    """
+    """Discover fit-checked library variants and installed models; optionally pull missing tags."""
     if auto_pull and installed_only:
         raise typer.BadParameter("Do not combine --auto-pull with --installed-only")
+    if discovery not in {"library", "curated"}:
+        raise typer.BadParameter("--discovery must be library or curated")
     if urlparse(api_url).hostname not in {"localhost", "127.0.0.1", "::1"}:
         raise typer.BadParameter(
             "Catalog fit checks require a local Ollama server. Run on the Ollama host."
         )
-
-    try:
-        client = _backend(api_url)
-        installed = client.models()
-        candidates = (
-            select_installed(installed) if installed_only else catalog_candidates(catalog_file)
-        )
-        if not installed_only:
-            known_names = {candidate.name for candidate in candidates}
-            candidates.extend(
-                item for item in select_installed(installed) if item.name not in known_names
-            )
-        total_ram = system_ram_bytes()
-        store = model_storage_dir(model_dir)
-        free_storage_bytes(store)
-    except (OllamaError, OSError, ValueError) as exc:
-        console.print(f"[red]Catalog preflight failed: {exc}[/red]")
-        raise typer.Exit(code=1) from exc
-
-    installed_by_name = {str(item.get("name") or item.get("model")): item for item in installed}
-    output_dir.mkdir(parents=True, exist_ok=True)
-    progress = output_dir / (
-        f"catalog-progress-{datetime.now(timezone.utc):%Y%m%dT%H%M%SZ}-{uuid4().hex}.jsonl"
+    # Validate all generation settings before discovery or downloads.
+    BenchmarkConfig(
+        model="preflight",
+        repeat=repeat,
+        warmup=warmup,
+        api_url=api_url,
+        num_ctx=num_ctx,
+        num_predict=num_predict,
+        think=think,
+        telemetry_enabled=telemetry,
+        telemetry_interval_seconds=telemetry_interval,
     )
-    successful = 0
-    skipped = 0
-    failed = 0
-    with progress.open("x", encoding="utf-8") as stream:
-        for index, candidate in enumerate(candidates, 1):
-            name = candidate.name
-            metadata = installed_by_name.get(name)
-            actual_size = metadata.get("size") if metadata else None
-            size_gb = (
-                actual_size / 1_000_000_000
-                if isinstance(actual_size, int) and actual_size > 0
-                else candidate.size_gb
-            )
-            from llm_bench.model_catalog import Candidate
+    with nullcontext(None) if dry_run else Progress(output_dir, repeat, warmup) as tracker:
+        client = _backend(api_url)
+        try:
+            installed = client.models()
+            store = model_storage_dir(model_dir)
+            free_storage_bytes(store)
+            total_ram = system_ram_bytes()
+            warnings: list[str] = []
+            if installed_only:
+                candidates = select_installed(installed)
+            elif discovery == "curated":
+                candidates = catalog_candidates(catalog_file)
+            else:
+                if tracker:
+                    tracker.update(
+                        stage="discovering", discovery_source="https://ollama.com/library"
+                    )
+                console.print(
+                    "Discovering public library variants (metadata only, up to ~3 minutes)…"
+                )
 
-            sized = Candidate(name, size_gb)
-            try:
-                free_disk = free_storage_bytes(store)
+                def discovery_progress(done: int, total: int) -> None:
+                    if tracker:
+                        tracker.update(detail=f"Library families inspected: {done}/{total}")
+
+                found = discover_library(progress=discovery_progress)
+                candidates, warnings = found.candidates, found.warnings
+                if catalog_file is not None:
+                    candidates.extend(catalog_candidates(catalog_file, include_builtin=False))
+                for warning in warnings:
+                    console.print(f"Discovery warning: {warning}", markup=False)
+                if not candidates:
+                    console.print(
+                        "No verified library candidates. Only installed models can run; "
+                        "use --discovery curated explicitly for the bundled catalog."
+                    )
+            installed_candidates = select_installed(installed)
+            installed_candidates_by_name = {item.name: item for item in installed_candidates}
+            # Reuse installed versions and their exact sizes/digests. This also
+            # deduplicates curated tags against already installed :latest aliases.
+            candidates = [installed_candidates_by_name.get(item.name, item) for item in candidates]
+            if not installed_only:
+                candidates.extend(installed_candidates)
+            candidates = sorted(
+                unique_candidates(candidates), key=lambda item: (item.size_gb, item.name)
+            )
+            if tracker:
+                tracker.plan(candidates)
+                tracker.update(
+                    discovery_warnings=warnings,
+                    discovery_source="installed" if installed_only else discovery,
+                    detail=None,
+                    stage="planned",
+                )
+        except (OllamaError, OSError, ValueError) as exc:
+            console.print(f"Catalog preflight failed: {exc}", markup=False)
+            raise typer.Exit(code=1) from exc
+
+        installed_by_name = {str(item.get("name") or item.get("model")): item for item in installed}
+        installed_by_digest = {
+            normalize_digest(item.get("digest")): item
+            for item in installed
+            if isinstance(item.get("digest"), str) and item["digest"]
+        }
+        console.print(
+            f"{len(candidates)} candidates; {repeat} measured repetitions per workload, "
+            f"{warmup} warm-ups. Model storage: {store}"
+        )
+        if dry_run:
+            table = Table("Model", "Weights GB", "Action / reason")
+            eligible = 0
+            for candidate in candidates:
+                metadata = installed_by_name.get(candidate.name) or installed_by_digest.get(
+                    normalize_digest(candidate.digest)
+                )
                 reason = fit_reason(
-                    sized,
+                    candidate,
                     total_ram_bytes=total_ram,
-                    free_disk_bytes=free_disk,
+                    free_disk_bytes=free_storage_bytes(store),
                     already_installed=metadata is not None,
                 )
-            except OSError as exc:
-                reason = f"Cannot verify Ollama model storage: {exc}"
-            record = {
-                "timestamp_utc": datetime.now(timezone.utc).isoformat(),
-                "model": name,
-                "estimated_size_gb": size_gb,
-                "candidate_index": index,
-                "candidate_count": len(candidates),
-                "installed_before": metadata is not None,
-                "status": "pending",
-                "reason": None,
-            }
-            if metadata is None and not auto_pull:
-                record["status"], record["reason"] = (
-                    "skipped_not_installed",
-                    "Enable --auto-pull to download candidate",
+                action = reason or (
+                    "benchmark installed"
+                    if metadata
+                    else "download then benchmark"
+                    if auto_pull
+                    else "not installed"
                 )
-            elif reason is not None:
-                record["status"], record["reason"] = "skipped_fit", reason
-            else:
+                eligible += int(reason is None and (metadata is not None or auto_pull))
+                table.add_row(candidate.name, f"{candidate.size_gb:.2f}", action)
+            console.print(table)
+            console.print(
+                f"Eligible now: {eligible}/{len(candidates)}. Disk is rechecked before each pull; "
+                "the full sweep may exceed available storage. No models downloaded or benchmarked."
+            )
+            return
+
+        assert tracker is not None
+        progress = output_dir / f"catalog-progress-{tracker.state.run_id}.jsonl"
+        with progress.open("x", encoding="utf-8") as stream:
+            for index, candidate in enumerate(candidates, 1):
+                name = candidate.name
+                tracker.start_model(name)
+                metadata = installed_by_name.get(name) or installed_by_digest.get(
+                    normalize_digest(candidate.digest)
+                )
+                actual_size = metadata.get("size") if metadata else None
+                size_gb = (
+                    actual_size / 1_000_000_000
+                    if type(actual_size) is int and actual_size > 0
+                    else candidate.size_gb
+                )
+                record = {
+                    "timestamp_utc": datetime.now(timezone.utc).isoformat(),
+                    "model": name,
+                    "estimated_size_gb": size_gb,
+                    "candidate_index": index,
+                    "candidate_count": len(candidates),
+                    "installed_before": metadata is not None,
+                    "status": "pending",
+                    "reason": None,
+                }
                 try:
-                    if metadata is None:
-                        console.print(f"[cyan]Pulling[/cyan] {name} ({index}/{len(candidates)})")
-                        client.pull(name)
-                        metadata = client.find_model(name)
-                    console.print(f"[cyan]Benchmarking[/cyan] {name} ({index}/{len(candidates)})")
-                    _run(
-                        name,
-                        repeat,
-                        warmup,
-                        api_url,
-                        output_dir,
-                        False,
-                        backend=client,
-                        num_ctx=num_ctx,
-                        num_predict=num_predict,
-                        think=think,
-                        telemetry_enabled=telemetry,
-                        telemetry_interval_seconds=telemetry_interval,
+                    reason = fit_reason(
+                        Candidate(name, size_gb),
+                        total_ram_bytes=total_ram,
+                        free_disk_bytes=free_storage_bytes(store),
+                        already_installed=metadata is not None,
                     )
-                    record["status"] = "completed"
-                    successful += 1
+                    if metadata is None and not auto_pull:
+                        record["status"], record["reason"] = (
+                            "skipped_not_installed",
+                            "Enable --auto-pull to download candidate",
+                        )
+                    elif reason is not None:
+                        record["status"], record["reason"] = "skipped_fit", reason
+                    else:
+                        if metadata is None:
+                            tracker.update(stage="downloading")
+                            console.print(
+                                f"Pulling {name} ({index}/{len(candidates)})", markup=False
+                            )
+                            client.pull(name, progress=tracker.download)
+                            metadata = client.find_model(name)
+                        # Published tags can change between discovery and pull.
+                        pulled_size = metadata.get("size")
+                        if type(pulled_size) is not int or pulled_size <= 0:
+                            raise ValueError("Installed model size is unknown; refusing inference")
+                        reason = fit_reason(
+                            Candidate(name, pulled_size / 1_000_000_000),
+                            total_ram_bytes=total_ram,
+                            free_disk_bytes=0,
+                            already_installed=True,
+                        )
+                        if reason:
+                            record["status"], record["reason"] = "skipped_fit", reason
+                        else:
+                            actual_name = str(metadata.get("name") or metadata.get("model") or name)
+                            console.print(
+                                f"Benchmarking {actual_name} ({index}/{len(candidates)})",
+                                markup=False,
+                            )
+                            tracker.update(stage="benchmarking")
+                            _run(
+                                actual_name,
+                                repeat,
+                                warmup,
+                                api_url,
+                                output_dir,
+                                False,
+                                backend=client,
+                                num_ctx=num_ctx,
+                                num_predict=num_predict,
+                                think=think,
+                                telemetry_enabled=telemetry,
+                                telemetry_interval_seconds=telemetry_interval,
+                                progress=tracker.invocation,
+                            )
+                            record["status"] = "completed"
                 except (OllamaError, typer.Exit, OSError, ValueError) as exc:
                     record["status"], record["reason"] = (
                         "failed",
                         str(exc) if not isinstance(exc, typer.Exit) else "Benchmark failed",
                     )
-                    failed += 1
-            if str(record["status"]).startswith("skipped"):
-                skipped += 1
-            stream.write(json.dumps(record, ensure_ascii=False) + "\n")
-            stream.flush()
-            console.print(
-                f"{name}: {record['status']}"
-                + (f" ({record['reason']})" if record["reason"] else "")
-            )
-    console.print(
-        f"[bold]Catalog complete[/bold]: {successful} passed, "
-        f"{skipped} skipped, {failed} failed. Status records: {progress}"
-    )
-    if successful == 0:
-        raise typer.Exit(code=1)
+                tracker.terminal(
+                    str(record["status"]), str(record["reason"]) if record["reason"] else None
+                )
+                record["timestamp_utc"] = datetime.now(timezone.utc).isoformat()
+                stream.write(json.dumps(record, ensure_ascii=False) + "\n")
+                stream.flush()
+                console.print(
+                    f"{name}: {record['status']}"
+                    + (f" ({record['reason']})" if record["reason"] else ""),
+                    markup=False,
+                )
+        console.print(
+            f"Catalog complete: {tracker.state.completed} benchmarked, "
+            f"{tracker.state.skipped} skipped, "
+            f"{tracker.state.failed} failed. Status records: {progress}"
+        )
+        if tracker.state.completed == 0:
+            raise typer.Exit(code=1)
+
+
+@app.command("status")
+def benchmark_status(output_dir: Path = typer.Option(DEFAULT_RESULTS, "--output-dir")) -> None:
+    """Show the latest sweep and active invocation without blocking its writer."""
+    console.print(status_text(output_dir), markup=False)
 
 
 @app.command()
@@ -381,6 +538,7 @@ def _run(
     think: bool = False,
     telemetry_enabled: bool = True,
     telemetry_interval_seconds: float = 1.0,
+    progress: Callable[[int, int, str, str, int], None] | None = None,
 ) -> None:
     try:
         config = BenchmarkConfig(
@@ -397,7 +555,7 @@ def _run(
         # Check model availability before starting a potentially lengthy experiment.
         client = backend or _backend(api_url)
         client.find_model(model)
-        experiment = run_benchmark(config, client)
+        experiment = run_benchmark(config, client, progress=progress)
     except (ValueError, OllamaError) as exc:
         console.print(f"[red]Benchmark could not start: {exc}[/red]")
         raise typer.Exit(code=1) from exc

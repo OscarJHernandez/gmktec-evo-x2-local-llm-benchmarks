@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import math
+from collections.abc import Callable
 from datetime import datetime, timezone
 from typing import Any
 from urllib.parse import urlparse
@@ -41,6 +42,7 @@ def run_benchmark(
     backend: InferenceBackend | None = None,
     *,
     gpu_collector: GpuCollector | None = None,
+    progress: Callable[[int, int, str, str, int], None] | None = None,
 ) -> Experiment:
     client = backend or OllamaBackend(config.api_url, config.timeout)
     version = client.health()
@@ -69,6 +71,7 @@ def run_benchmark(
 
     samples: list[Sample] = []
     warnings: list[str] = []
+    total_invocations = 1 + len(WORKLOADS) * (config.warmup + config.repeat)
     with Sampler(collector, config.telemetry_interval_seconds) as sampler:
         for workload_index, workload in enumerate(WORKLOADS):
             phases = []
@@ -77,6 +80,10 @@ def run_benchmark(
             phases.extend((("warmup", config.warmup), ("warm_start", config.repeat)))
             for phase, count in phases:
                 for repetition in range(count):
+                    if progress is not None:
+                        progress(
+                            len(samples), total_invocations, workload.name, phase, repetition + 1
+                        )
                     output_limit = min(workload.output_limit, config.num_predict)
                     invocation_id = uuid4().hex
                     before = residency(config.model)
@@ -183,6 +190,10 @@ def run_benchmark(
                             premature_completion=premature,
                         )
                     )
+                    if progress is not None:
+                        progress(
+                            len(samples), total_invocations, workload.name, phase, repetition + 1
+                        )
     details = model_metadata.get("details")
     quantization = details.get("quantization_level") if isinstance(details, dict) else None
     digest = model_metadata.get("digest")

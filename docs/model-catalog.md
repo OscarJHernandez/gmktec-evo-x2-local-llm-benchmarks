@@ -1,72 +1,139 @@
-# Ollama model catalog and fit checks
+# Automatic Ollama sweeps
 
-This suite targets locally hosted Ollama inference on the GMKtec EVO-X2 with
-128 GB unified memory. The curated list in
-`src/llm_bench/model_catalog.py` deliberately includes many text-capable
-and multimodal models which can accept text prompts. It excludes cloud-only,
-embedding-only and clearly oversized tags by default. Locally installed extra
-generative model tags are discovered dynamically via Ollama `/api/tags`.
+`make benchmark-start` uses **live library discovery**, pulls missing eligible
+models, and benchmarks them sequentially in a detached tmux session. It needs no
+model list. The default is **50 measured repetitions per workload**, three
+warm-ups per workload, and one initial startup observation: 160 generation calls
+per model across the three workloads. Use `REPEAT=100` for longer runs; supported
+values are 1–1000. Five repetitions are useful for smoke tests, not the default.
 
-## Verified Ollama library families
+## Preview, run, and monitor
 
-The default catalog contains 44 specific model tags sourced from these official
-Ollama library pages (as of October 2026):
-
-- [Qwen3.5](https://ollama.com/library/qwen3.5/tags): 0.8B–122B
-- [Qwen3](https://ollama.com/library/qwen3): 0.6B–32B
-- [Qwen3-Coder](https://ollama.com/library/qwen3-coder): 30B
-- [Qwen2.5-Coder](https://ollama.com/library/qwen2.5-coder): 0.5B–32B
-- [Gemma 3](https://ollama.com/library/gemma3): 1B–27B
-- [GPT-OSS](https://ollama.com/library/gpt-oss): 20B and 120B
-- [DeepSeek-R1](https://ollama.com/library/deepseek-r1/tags): 1.5B–70B
-- [Llama 3.2](https://ollama.com/library/llama3.2): 1B and 3B
-- [Llama 3.3](https://ollama.com/library/llama3.3): 70B
-- [Mistral Small 3.2](https://ollama.com/library/mistral-small3.2): 24B
-- [Mistral NeMo](https://ollama.com/library/mistral-nemo): 12B
-- [Phi-4](https://ollama.com/library/phi4): 14B
-- [Command R](https://ollama.com/library/command-r): 35B
-- [OLMo 2](https://ollama.com/library/olmo2): 7B and 13B
-- [Granite 3.3](https://ollama.com/library/granite3.3): 2B and 8B
-
-Published model artifact sizes are rounded and can change. They are **not**
-measured GPU allocation, context/KV memory, or guaranteed RAM requirements.
-The preflight uses approximate weights, a 30% execution allocation allowance,
-a 24 GiB operating-system/context reserve, a 15% download allowance and a
-20 GiB disk reserve. A fit decision is only permission to *attempt* the model.
-Real compatibility must be determined empirically.
-
-## Commands
-
-```sh
-make benchmark-start                         # auto-pull eligible tags and benchmark
-make benchmark-start MODELS=installed        # test all locally installed tags
-make benchmark-start MODELS=qwen3.5:9b       # explicit installed model
-make benchmark-status
+```bash
+make benchmark-plan                  # metadata/fit preview; no downloads or inference
+make benchmark-start                 # automatic library sweep, downloads as needed
+make benchmark-status                # one progress snapshot
+watch -n 5 make --no-print-directory benchmark-status
 make benchmark-logs
 make benchmark-stop
 make benchmark-export
 ```
 
-Use `MODEL_DIR=/actual/ollama/model/storage` if the Ollama service uses a
-different disk than the current Linux user's `~/.ollama/models` path. The
-default connection must be local for disk/RAM safeguards to apply.
+`benchmark-status` shows the latest run ID, process status, model progress bar,
+successfully benchmarked / failed / skipped counts, remaining models (including
+the active one), current model, active-layer download bytes, and invocation
+progress with workload, phase, and repetition. The model bar measures **processed
+candidates**; a skipped model has not been benchmarked. During discovery the total
+is not yet known, and status shows library-family discovery progress instead.
+No ETA is inferred from heterogeneous model speeds.
 
-You can extend the known candidate catalog using an external JSON file:
+The tmux session state and benchmark process state are reported separately. A
+process identity includes PID and creation time, so a stopped run does not become
+"running" when its PID is reused. Progress is saved atomically to
+`RESULTS/benchmark-state-*.jsonl`; terminal model outcomes remain in
+`catalog-progress-*.jsonl`. These are owned cleanup artifacts. Each new sweep has
+a new ID and counts, even if older experiment results are retained. These files
+track progress; they do **not** resume an unfinished model. Completed experiments
+survive interruption. Explicit-model and installed-only runs also report progress.
 
-```json
-[
-  {"name": "my-model:7b", "size_gb": 5.0},
-  {"name": "my-model:14b", "size_gb": 10.0}
-]
+Equivalent foreground commands:
+
+```bash
+uv run llm-bench catalog-run --auto-pull --dry-run
+uv run llm-bench catalog-run --auto-pull
+uv run llm-bench status --output-dir results
 ```
 
-Pass `CATALOG_FILE=/path/to/extra-models.json` when starting the benchmark.
-Extra entries are merged with built-in tags without duplication. Missing tags
-will be attempted and, if Ollama rejects the pull, recorded as failures rather
-than causing the suite to stop. No models are downloaded by non-catalog
-`llm-bench run` / `compare` commands.
+## What "all models" covers
 
-The benchmark cannot discover every public Ollama registry model, and may skip
-a model that could fit with tighter context settings or a different quantization.
-It never pulls remote cloud-only tags, and does not silently claim models have
-been tested on the actual EVO-X2 prior to running.
+Discovery reads the [public Ollama library](https://ollama.com/library), its family
+tag pages, and registry manifests, without downloading weights. It selects each
+family's standard size aliases (for example `8b`, `70b`, `8x7b`, `e2b`, or
+`30b-a3b`), using
+`latest` only when a family has no such aliases. These aliases select the
+publisher's default quantization. It excludes embedding families and cloud tags,
+and requires local weight layers with known sizes. Identical manifests are
+deduplicated. Installed aliases of a discovered digest are reused without pulling
+the same artifact under another name. Existing installed tags are reused without
+automatically updating their weights. Additional installed generative models are
+included. Candidates run in increasing artifact-size order.
+
+This is a broad **open-weight library sweep**, not an enumeration of every
+community upload, historical revision, or quantization. Licenses vary; discovery
+is not an open-source license certification. Multimodal models receive the same
+text workloads, not image/audio tests. Some text-capable or specialist models may
+still reject these prompts or require a newer Ollama release; failures are logged
+and the sweep continues.
+
+Library HTML is not a versioned API. Discovery uses four metadata workers,
+10-second request timeouts, an approximately three-minute discovery budget,
+response/family/tag limits, and explicit warnings for missing or malformed data.
+Partial discovery remains usable, with warnings visible in status and saved with
+the frozen candidate list and manifest digests. Unknown sizes never authorize a
+download. Discovery failure does not silently claim a complete sweep or fall back
+to approximate catalog sizes. Installed models can still run.
+
+For a fixed candidate list or unavailable library metadata, choose the bundled 44-tag catalog:
+
+```bash
+make benchmark-start DISCOVERY=curated
+make benchmark-start MODELS=installed       # no discovery network calls or pulls
+make benchmark-start MODELS=qwen3.5:9b      # named installed models only
+make benchmark-plan MODELS=qwen3.5:9b       # preview that same named selection
+```
+
+## Fit and storage
+
+Preflight budgets the complete weight artifact, **30% runtime overhead plus
+24 GiB RAM reserve**, and **15% download overhead plus 20 GiB disk reserve**. It
+checks physical RAM and current free storage before every pull; after pulling it
+checks actual installed size again before inference. Installed models do not need
+download space. Size estimates cannot guarantee fit at every context length or
+under competing workloads. `NUM_CTX=4096` is the default; large contexts can need
+substantially more memory. This is not a GPU-only residency guarantee.
+
+Set `MODEL_DIR=/actual/ollama/model/storage` (or `OLLAMA_MODELS`) to the server's
+weight directory, especially when Ollama runs as a system service. Without either,
+the existing default is `~/.ollama/models`. The selected path is printed in the
+plan and run log; it must refer to the server's filesystem for disk checks to be
+meaningful. The endpoint must be loopback for automatic sweeps.
+
+A broad sweep can take days and accumulate hundreds of GB or more. Models remain
+installed for reuse; the benchmark does not delete weights to make room. When
+space is insufficient, remaining downloads are skipped individually with reasons.
+The preview's eligible count is based on **current** free space; it is not a promise
+that all candidates can be retained together. Existing model weights, completed
+results, and physics workflows are preserved.
+
+Installed community namespaces such as `user/model:8b` are supported.
+
+Extra candidates can be added using `CATALOG_FILE=/path/to/models.json`:
+
+```json
+[{"name": "my-model:7b", "size_gb": 5.0}]
+```
+
+This augments live discovery (or the bundled catalog with `DISCOVERY=curated`).
+User-supplied sizes are estimates. `run` and `compare` never download models.
+
+## Sampling and fresh starts
+
+Fifty repetitions improve estimates of local timing variability over a five-run
+smoke test, but no fixed count guarantees statistical precision. Repeated prompts
+at temperature zero are not independent draws of model quality. Cache, thermal
+drift, and run order matter; compare matched workload/context/quantization/phase
+groups, inspect distributions, and repeat whole sessions for between-session
+variation. See [methodology](methodology.md#repetitions-and-statistical-interpretation).
+
+```bash
+make benchmark-stop
+make benchmark-clean DRY_RUN=1
+make benchmark-clean
+make benchmark-start
+make benchmark-status
+make benchmark-export
+make notebook
+```
+
+Use the same `RESULTS=/path/to/results` on each command for custom directories.
+Cleanup resets results and progress, preserving downloaded model weights.

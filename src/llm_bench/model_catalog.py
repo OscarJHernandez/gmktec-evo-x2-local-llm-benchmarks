@@ -15,6 +15,8 @@ from typing import Any
 
 import psutil
 
+from llm_bench.models import valid_model_name
+
 GB = 1_000_000_000
 GIB = 1024**3
 
@@ -23,6 +25,7 @@ GIB = 1024**3
 class Candidate:
     name: str
     size_gb: float
+    digest: str | None = None
 
 
 # Explicit, locally runnable tags only. No :latest duplicates, cloud endpoints,
@@ -75,9 +78,11 @@ CATALOG: tuple[Candidate, ...] = (
 )
 
 
-def catalog_candidates(extra: Path | None = None) -> list[Candidate]:
+def catalog_candidates(
+    extra: Path | None = None, *, include_builtin: bool = True
+) -> list[Candidate]:
     """Merge extra JSON candidates without duplicating tags or trusting malformed sizes."""
-    candidates = list(CATALOG)
+    candidates = list(CATALOG) if include_builtin else []
     if extra is not None:
         data = json.loads(extra.read_text(encoding="utf-8"))
         if not isinstance(data, list):
@@ -91,9 +96,7 @@ def catalog_candidates(extra: Path | None = None) -> list[Candidate]:
                 or not name
                 or name.endswith("-cloud")
                 or "-cloud:" in name
-                or "/" in name
-                or "\\" in name
-                or any(char.isspace() for char in name)
+                or not valid_model_name(name)
                 or isinstance(size, bool)
                 or not isinstance(size, int | float)
                 or not (0 < size < 10000)
@@ -147,10 +150,14 @@ def select_installed(installed: list[dict[str, Any]]) -> list[Candidate]:
     result: list[Candidate] = []
     for item in installed:
         name = item.get("name") or item.get("model")
-        if not isinstance(name, str) or "cloud" in name.lower():
+        if not isinstance(name, str) or not valid_model_name(name) or "cloud" in name.lower():
             continue
         details = item.get("details") or {}
+        if not isinstance(details, dict):
+            continue
         families = details.get("families") or []
+        if not isinstance(families, list):
+            continue
         if (
             "embed" in name.lower()
             or "embedding" in name.lower()
@@ -161,5 +168,31 @@ def select_installed(installed: list[dict[str, Any]]) -> list[Candidate]:
         if isinstance(size, bool) or not isinstance(size, int) or size <= 0:
             # Without model size, fail closed instead of assuming a small model.
             continue
-        result.append(Candidate(name=name, size_gb=size / GB))
+        result.append(
+            Candidate(
+                name=name,
+                size_gb=size / GB,
+                digest=normalize_digest(item.get("digest")),
+            )
+        )
+    return result
+
+
+def normalize_digest(value: Any) -> str | None:
+    return value.removeprefix("sha256:") if isinstance(value, str) and value else None
+
+
+def unique_candidates(candidates: list[Candidate]) -> list[Candidate]:
+    """Keep first occurrence of each tag or known manifest identity."""
+    names: set[str] = set()
+    digests: set[str] = set()
+    result = []
+    for candidate in candidates:
+        digest = normalize_digest(candidate.digest)
+        if candidate.name in names or (digest is not None and digest in digests):
+            continue
+        names.add(candidate.name)
+        if digest is not None:
+            digests.add(digest)
+        result.append(candidate)
     return result

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import time
+from collections.abc import Callable
 from typing import Any, cast
 from urllib.error import HTTPError
 from urllib.request import Request, urlopen
@@ -82,7 +83,7 @@ class OllamaBackend:
         except OllamaError:
             return None
 
-    def pull(self, model: str) -> None:
+    def pull(self, model: str, *, progress: Callable[[dict[str, Any]], None] | None = None) -> None:
         """Download one Ollama tag, consuming progress messages without buffering them."""
         request = Request(
             f"{self.api_url}/api/pull",
@@ -103,6 +104,8 @@ class OllamaBackend:
                         raise OllamaError("Malformed Ollama model-pull response")
                     if event.get("error"):
                         raise OllamaError(f"Ollama failed to pull {model}: {event['error']}")
+                    if progress is not None:
+                        progress(event)
                     if event.get("status") == "success":
                         success = True
         except HTTPError as exc:
