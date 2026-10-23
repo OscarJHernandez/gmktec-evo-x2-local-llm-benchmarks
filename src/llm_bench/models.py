@@ -9,6 +9,8 @@ from uuid import uuid4
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
+from llm_bench.telemetry.schemas import Capability, Observation, SamplingStats, TelemetrySummary
+
 
 class BenchmarkConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
@@ -23,6 +25,9 @@ class BenchmarkConfig(BaseModel):
     temperature: float = Field(default=0.0, ge=0.0, le=2.0)
     think: bool = False
     timeout: float = Field(default=600.0, gt=0.0)
+
+    telemetry_enabled: bool = True
+    telemetry_interval_seconds: float = Field(default=1.0, gt=0, allow_inf_nan=False)
 
     @field_validator("model")
     @classmethod
@@ -49,7 +54,7 @@ class Workload(BaseModel):
 
 
 class HardwareInfo(BaseModel):
-    collected_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    collected_at: datetime | None = Field(default_factory=lambda: datetime.now(timezone.utc))
     platform: str
     python_version: str
     cpu: str
@@ -63,6 +68,12 @@ class HardwareInfo(BaseModel):
 
 
 class Sample(BaseModel):
+    invocation_id: str | None = None
+    started_at: datetime | None = None
+    ended_at: datetime | None = None
+    telemetry_duration_seconds: float | None = None
+    residency_before: dict[str, Any] | None = None
+    residency_after: dict[str, Any] | None = None
     timestamp_utc: datetime | None = None
     workload: str
     phase: str
@@ -106,11 +117,13 @@ class Summary(BaseModel):
 
 
 class Experiment(BaseModel):
-    schema_version: str = "1.1"
+    schema_version: str = "1.2"
     experiment_id: str = Field(default_factory=lambda: uuid4().hex)
     framework_version: str
-    timestamp_utc: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    timestamp_utc: datetime | None = Field(default_factory=lambda: datetime.now(timezone.utc))
     model: str
+    model_size_bytes: int | None = None
+    parameter_size: str | None = None
     model_digest: str | None = None
     quantization: str | None = None
     backend: str = "ollama"
@@ -123,6 +136,11 @@ class Experiment(BaseModel):
     summaries: dict[str, Summary]
     warnings: list[str] = Field(default_factory=list)
     synthetic: bool = False
+    devices: list[dict[str, str]] = Field(default_factory=list)
+    capabilities: list[Capability] = Field(default_factory=list)
+    telemetry: list[Observation] = Field(default_factory=list)
+    telemetry_summaries: list[TelemetrySummary] = Field(default_factory=list)
+    sampling_stats: SamplingStats = Field(default_factory=SamplingStats)
 
 
 def summarize_samples(samples: list[Sample]) -> dict[str, Summary]:

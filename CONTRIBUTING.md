@@ -9,7 +9,7 @@ without checking for private prompts or environment information.
 Use Python 3.10 or later and uv:
 
 ```console
-uv sync --extra dev
+uv sync --extra dev --extra analysis
 uv run ruff format .
 uv run ruff check .
 uv run mypy

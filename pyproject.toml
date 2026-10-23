@@ -16,10 +16,12 @@ dependencies = [
   "rich>=13.7",
   "plotly>=5.20",
   "psutil>=5.9",
+  "pyarrow>=16,<24",
 ]
 
 [project.optional-dependencies]
-dev = ["pytest>=8.0", "ruff>=0.5", "mypy>=1.10", "pre-commit>=3.7"]
+dev = ["pytest>=8.0", "ruff>=0.5", "mypy>=1.10", "pre-commit>=3.7", "nbclient>=0.10", "nbformat>=5.10", "pandas>=2.2"]
+analysis = ["duckdb>=1.1,<2", "polars>=1.0", "jupyterlab>=4.2", "ipykernel>=6.29"]
 
 [project.scripts]
 llm-bench = "llm_bench.cli:app"
@@ -48,5 +50,5 @@ mypy_path = "src"
 packages = ["llm_bench"]
 
 [[tool.mypy.overrides]]
-module = ["plotly.*", "psutil"]
+module = ["plotly.*", "psutil", "pyarrow.*"]
 ignore_missing_imports = true

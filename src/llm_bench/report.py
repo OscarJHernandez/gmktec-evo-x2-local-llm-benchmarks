@@ -7,6 +7,7 @@ from pathlib import Path
 import plotly.graph_objects as go
 from plotly.offline import get_plotlyjs
 
+from llm_bench.hardware_report import hardware_panels
 from llm_bench.models import Experiment, Summary
 
 
@@ -161,6 +162,7 @@ th,td{{text-align:left;padding:.7rem;border-bottom:1px solid #e4eaf0}}
 <th>Median output tok/s</th><th>Std dev tok/s</th><th>Median client TTFT (s)</th>
 <th>Uncached input tok/s</th><th>Cached input tok/s</th><th>Unknown-cache input tok/s</th>
 </tr></thead><tbody>{"".join(rows)}</tbody></table></section>
+{hardware_panels(experiments)}
 <section><h2>Experiment and hardware settings</h2>{"".join(configurations)}</section>
 <section><h2>Variability and individual runs</h2>{_raw_table(experiments)}</section>
 <section><h2>Warnings and limitations</h2><ul>{warnings}</ul>

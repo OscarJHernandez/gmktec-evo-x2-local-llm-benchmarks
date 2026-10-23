@@ -35,7 +35,9 @@ def observation_rows(experiments: list[Experiment]) -> list[dict[str, Any]]:
                 rows.append(
                     {
                         "experiment_id": experiment.experiment_id,
-                        "timestamp_utc": experiment.timestamp_utc.isoformat(),
+                        "timestamp_utc": experiment.timestamp_utc.isoformat()
+                        if experiment.timestamp_utc
+                        else None,
                         "model": experiment.model,
                         "model_digest": experiment.model_digest,
                         "quantization": experiment.quantization,

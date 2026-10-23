@@ -8,6 +8,11 @@ NUM_CTX ?= 4096
 NUM_PREDICT ?= 128
 THINK ?= off
 RESULTS ?= results
+TELEMETRY ?= on
+TELEMETRY_INTERVAL ?= 1
+DRY_RUN ?= 0
+TELEMETRY_FLAG = $(if $(filter on true 1 yes,$(TELEMETRY)),--telemetry,--no-telemetry)
+CLEAN_FLAG = $(if $(filter on true 1 yes,$(DRY_RUN)),--dry-run,)
 SESSION ?= evo-x2-llm-bench
 THINK_FLAG = $(if $(filter on true 1 yes,$(THINK)),--think,--no-think)
 PHYSICS_DATASET ?= scibench
@@ -25,7 +30,7 @@ CATALOG_FILE ?=
 MODEL_DIR ?=
 OPTIONAL_CATALOG = $(if $(CATALOG_FILE),--catalog-file '$(CATALOG_FILE)',)
 OPTIONAL_STORE = $(if $(MODEL_DIR),--model-dir '$(MODEL_DIR)',)
-COMMON_ARGS = --repeat '$(REPEAT)' --warmup '$(WARMUP)' --num-ctx '$(NUM_CTX)' --num-predict '$(NUM_PREDICT)' $(THINK_FLAG) --output-dir '$(RESULTS)'
+COMMON_ARGS = $(TELEMETRY_FLAG) --telemetry-interval '$(TELEMETRY_INTERVAL)' --repeat '$(REPEAT)' --warmup '$(WARMUP)' --num-ctx '$(NUM_CTX)' --num-predict '$(NUM_PREDICT)' $(THINK_FLAG) --output-dir '$(RESULTS)'
 ifeq ($(MODELS),catalog)
 BENCH_COMMAND = uv run llm-bench catalog-run --auto-pull $(COMMON_ARGS) $(OPTIONAL_CATALOG) $(OPTIONAL_STORE)
 else ifeq ($(MODELS),installed)
@@ -34,9 +39,9 @@ else
 BENCH_COMMAND = uv run llm-bench compare --models '$(MODELS)' $(COMMON_ARGS)
 endif
 
-.PHONY: setup doctor models benchmark-start benchmark-status benchmark-stop benchmark-logs benchmark-report benchmark-export physics-prepare physics-start physics-status physics-stop physics-logs physics-results check
+.PHONY: setup doctor models benchmark-start benchmark-status benchmark-stop benchmark-logs benchmark-report benchmark-export benchmark-clean notebook physics-prepare physics-start physics-status physics-stop physics-logs physics-results check
 setup:
-	uv sync --extra dev
+	uv sync --extra dev --extra analysis
 doctor:
 	uv run llm-bench doctor
 models:
@@ -56,8 +61,12 @@ benchmark-logs:
 benchmark-report:
 	uv run llm-bench report --input "$(RESULTS)" --output "$(RESULTS)/report.html"
 benchmark-export:
-	@mkdir -p "$(RESULTS)/exports"
-	uv run llm-bench report --input "$(RESULTS)" --output "$(RESULTS)/exports/report.html" --observations "$(RESULTS)/exports/observations-$$(date -u +%Y%m%dT%H%M%S%N).csv" --jsonl "$(RESULTS)/exports/observations-$$(date -u +%Y%m%dT%H%M%S%N).jsonl"
+	uv run llm-bench export --input "$(RESULTS)" --output-dir "$(RESULTS)/exports"
+benchmark-clean:
+	@if command -v tmux >/dev/null && tmux has-session -t "$(SESSION)" 2>/dev/null; then echo "Stop the benchmark first: make benchmark-stop"; exit 1; fi
+	uv run llm-bench clean --output-dir "$(RESULTS)" $(CLEAN_FLAG)
+notebook:
+	uv run --extra analysis jupyter lab notebooks/benchmark_analysis.ipynb
 # Physics jobs have their own tmux session and do not interfere with inference benchmarks.
 physics-prepare:
 	uv run llm-bench physics-prepare --dataset '$(PHYSICS_DATASET)' --data-dir '$(RESULTS)/datasets'
