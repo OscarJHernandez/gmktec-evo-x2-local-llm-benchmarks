@@ -19,6 +19,8 @@ from llm_bench.model_catalog import (
     select_installed,
 )
 
+pytestmark = pytest.mark.usefixtures("benchmark_machine")
+
 
 def test_catalog_covers_broad_local_models_without_duplicate_tags() -> None:
     names = [model.name for model in CATALOG]
@@ -430,3 +432,52 @@ def test_curated_catalog_uses_actual_installed_size_and_deduplicates_aliases(
     state = latest_progress(tmp_path)
     assert state is not None and state.completed == 1 and len(state.models) == 1
     assert state.models[0].size_gb == 1
+
+
+@pytest.mark.parametrize(
+    ("ram_gib", "disk_gib", "installed", "expected_status", "reason"),
+    [
+        (8, 100, False, "skipped_fit", "memory"),
+        (128, 1, False, "skipped_fit", "storage"),
+        (8, 100, True, "skipped_fit", "memory"),
+        (128, 1, True, "completed", None),
+    ],
+)
+def test_catalog_enforces_resource_limits_independently_of_runner(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    ram_gib: int,
+    disk_gib: int,
+    installed: bool,
+    expected_status: str,
+    reason: str | None,
+) -> None:
+    from llm_bench.progress import latest_progress
+
+    class Backend:
+        def models(self) -> list[dict[str, Any]]:
+            return [{"name": "test:1b", "size": 1000000000}] if installed else []
+
+        def pull(self, *args: Any, **kwargs: Any) -> None:
+            pytest.fail("Resource-limited candidates must not be downloaded")
+
+    completed: list[str] = []
+    monkeypatch.setattr(cli, "_backend", lambda _: Backend())
+    monkeypatch.setattr(cli, "catalog_candidates", lambda _: [Candidate("test:1b", 1)])
+    monkeypatch.setattr(cli, "system_ram_bytes", lambda: ram_gib * 1024**3)
+    monkeypatch.setattr(cli, "free_storage_bytes", lambda _: disk_gib * 1024**3)
+    monkeypatch.setattr(cli, "_run", lambda model, *args, **kwargs: completed.append(model))
+    result = CliRunner().invoke(
+        cli.app,
+        ["catalog-run", "--auto-pull", "--discovery", "curated", "--output-dir", str(tmp_path)],
+    )
+    assert result.exit_code == (0 if expected_status == "completed" else 1), result.output
+    progress_path = next(tmp_path.glob("catalog-progress-*.jsonl"))
+    record = json.loads(progress_path.read_text())
+    assert record["status"] == expected_status
+    assert (reason in record["reason"]) if reason is not None else record["reason"] is None
+    assert completed == (["test:1b"] if expected_status == "completed" else [])
+    state = latest_progress(tmp_path)
+    assert state is not None
+    assert state.completed == len(completed)
+    assert state.skipped == int(expected_status == "skipped_fit")

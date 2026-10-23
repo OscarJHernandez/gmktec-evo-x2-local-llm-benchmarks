@@ -16,6 +16,8 @@ from llm_bench.progress import Progress, latest_progress, status_text
 from llm_bench.runner import run_benchmark
 from llm_bench.storage import clean_results, output_lock
 
+pytestmark = pytest.mark.usefixtures("benchmark_machine")
+
 
 def test_progress_counts_active_download_and_interruption(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
