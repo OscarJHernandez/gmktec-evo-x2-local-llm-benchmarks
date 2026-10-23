@@ -18,7 +18,6 @@ git clone https://github.com/OscarJHernandez/gmktec-evo-x2-local-llm-benchmarks.
 cd gmktec-evo-x2-local-llm-benchmarks
 uv sync
 make doctor
-ollama pull qwen3.5:9b
 ```
 
 `uv sync` automatically creates `.venv` and installs dependencies. `uv run`
@@ -27,28 +26,32 @@ ROCm management services are required for ordinary benchmarks.
 
 ## Run and monitor
 
-A minimal foreground benchmark:
+Run the automatic library sweep without listing models:
 
 ```bash
-uv run llm-bench run --model qwen3.5:9b --repeat 5
-```
-
-For background comparisons of installed models:
-
-```bash
-make benchmark-start MODELS=qwen3.5:9b,qwen3.5:27b,qwen3.5:35b REPEAT=5
-make benchmark-status
+make benchmark-plan                  # preview candidates and fit checks
+make benchmark-start                 # discover, download as needed, benchmark
+make benchmark-status                # progress bar, completed/remaining, active model
 make benchmark-logs
 make benchmark-stop
 ```
 
-Telemetry defaults to one-second sampling. Override `TELEMETRY_INTERVAL=0.5`,
-use `TELEMETRY=off`, or pass `--telemetry-interval` / `--no-telemetry` to the CLI.
-Set `NUM_CTX`, `NUM_PREDICT`, `WARMUP`, `THINK`, and `RESULTS` as needed.
+Defaults are **50 measured repetitions per workload** and three warm-ups.
+Use `REPEAT=100` for longer sampling. Status includes download progress and the
+current workload/repetition; `watch -n 5 make --no-print-directory benchmark-status`
+refreshes it. Fifty runs measure timing variability, not independent model-quality
+samples; see [methodology](docs/methodology.md).
 
-`MODELS=installed` selects installed models. The default `MODELS=catalog`
-workflow can download eligible models; read the [catalog guide](docs/model-catalog.md)
-before starting it. Foreground `run` and `compare` never download models.
+The sweep selects standard variants in Ollama's public open-weight library,
+checks RAM/storage, and skips oversized models. It can take days and use substantial
+disk space. It does not cover every community upload or license. See the
+[catalog guide](docs/model-catalog.md) for scope, storage paths, and limitations.
+`MODELS=installed` avoids downloads; `MODELS=qwen3.5:9b` selects an installed model;
+`DISCOVERY=curated` uses the bundled catalog instead of live discovery.
+
+Telemetry defaults to one-second sampling. Set `TELEMETRY_INTERVAL`, `TELEMETRY=off`,
+`NUM_CTX`, `NUM_PREDICT`, `WARMUP`, `THINK`, and `RESULTS` as needed. Foreground
+`uv run llm-bench run --model qwen3.5:9b` and `compare` never download models.
 
 ## Export and analyze
 
@@ -74,7 +77,7 @@ Use `make benchmark-report` for a report directly from experiment JSON.
 make benchmark-stop
 make benchmark-clean DRY_RUN=1
 make benchmark-clean
-make benchmark-start MODELS=qwen3.5:9b REPEAT=5
+make benchmark-start
 ```
 
 Cleanup removes recognized inference results, exports, reports, and logs inside

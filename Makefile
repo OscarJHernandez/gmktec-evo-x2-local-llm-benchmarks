@@ -1,4 +1,4 @@
-# MODELS=catalog (default): download safe-fit candidates, then benchmark every model.
+# MODELS=catalog (default): discover library variants, download eligible models, benchmark.
 # MODELS=installed: benchmark everything already downloaded, without pulling.
 # MODELS=qwen3.5:9b,qwen3.5:35b: benchmark only the selected installed tags.
 MODELS ?= catalog
@@ -26,26 +26,29 @@ PHYSICS_THINK ?= off
 PHYSICS_SESSION ?= evo-x2-physics-bench
 PHYSICS_THINK_FLAG = $(if $(filter on true 1 yes,$(PHYSICS_THINK)),--think,--no-think)
 PHYSICS_COMMAND = uv run llm-bench physics-run --dataset '$(PHYSICS_DATASET)' --models '$(PHYSICS_MODELS)' --repeat '$(PHYSICS_REPEAT)' --max-questions '$(PHYSICS_QUESTIONS)' --num-ctx '$(PHYSICS_CTX)' --num-predict '$(PHYSICS_TOKENS)' --temperature '$(PHYSICS_TEMPERATURE)' $(PHYSICS_THINK_FLAG) --fetch --data-dir '$(RESULTS)/datasets' --output-dir '$(RESULTS)/physics'
+DISCOVERY ?= library
 CATALOG_FILE ?=
 MODEL_DIR ?=
 OPTIONAL_CATALOG = $(if $(CATALOG_FILE),--catalog-file '$(CATALOG_FILE)',)
 OPTIONAL_STORE = $(if $(MODEL_DIR),--model-dir '$(MODEL_DIR)',)
 COMMON_ARGS = $(TELEMETRY_FLAG) --telemetry-interval '$(TELEMETRY_INTERVAL)' --repeat '$(REPEAT)' --warmup '$(WARMUP)' --num-ctx '$(NUM_CTX)' --num-predict '$(NUM_PREDICT)' $(THINK_FLAG) --output-dir '$(RESULTS)'
 ifeq ($(MODELS),catalog)
-BENCH_COMMAND = uv run llm-bench catalog-run --auto-pull $(COMMON_ARGS) $(OPTIONAL_CATALOG) $(OPTIONAL_STORE)
+BENCH_COMMAND = uv run llm-bench catalog-run --auto-pull --discovery '$(DISCOVERY)' $(COMMON_ARGS) $(OPTIONAL_CATALOG) $(OPTIONAL_STORE)
 else ifeq ($(MODELS),installed)
 BENCH_COMMAND = uv run llm-bench catalog-run --installed-only $(COMMON_ARGS) $(OPTIONAL_STORE)
 else
 BENCH_COMMAND = uv run llm-bench compare --models '$(MODELS)' $(COMMON_ARGS)
 endif
 
-.PHONY: setup doctor models benchmark-start benchmark-status benchmark-stop benchmark-logs benchmark-report benchmark-export benchmark-clean notebook physics-prepare physics-start physics-status physics-stop physics-logs physics-results check
+.PHONY: setup doctor models benchmark-plan benchmark-start benchmark-status benchmark-stop benchmark-logs benchmark-report benchmark-export benchmark-clean notebook physics-prepare physics-start physics-status physics-stop physics-logs physics-results check
 setup:
 	uv sync --extra dev --extra analysis
 doctor:
 	uv run llm-bench doctor
 models:
 	uv run llm-bench models
+benchmark-plan:
+	$(BENCH_COMMAND) --dry-run
 benchmark-start:
 	@command -v tmux >/dev/null || { echo "tmux is required (sudo apt install tmux)"; exit 1; }
 	@! tmux has-session -t "$(SESSION)" 2>/dev/null || { echo "Benchmark session already running"; exit 1; }
@@ -53,7 +56,8 @@ benchmark-start:
 	@tmux new-session -d -s "$(SESSION)" "PYTHONUNBUFFERED=1 $(BENCH_COMMAND) > '$(RESULTS)/benchmark.log' 2>&1"
 	@echo "Started tmux session $(SESSION). Use make benchmark-status or make benchmark-logs."
 benchmark-status:
-	@if tmux has-session -t "$(SESSION)" 2>/dev/null; then echo "RUNNING: $(SESSION)"; else echo "STOPPED"; fi
+	@if tmux has-session -t "$(SESSION)" 2>/dev/null; then echo "tmux session: RUNNING ($(SESSION))"; else echo "tmux session: STOPPED"; fi
+	@uv run llm-bench status --output-dir "$(RESULTS)"
 benchmark-stop:
 	@if tmux has-session -t "$(SESSION)" 2>/dev/null; then tmux kill-session -t "$(SESSION)"; echo "Stopped benchmark; Ollama unaffected"; else echo "No benchmark session running"; fi
 benchmark-logs:

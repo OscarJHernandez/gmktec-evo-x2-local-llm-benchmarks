@@ -128,6 +128,16 @@ def cleanup_candidates(root: Path) -> list[Path]:
     for path in root.glob("catalog-progress-*.jsonl"):
         if not path.is_symlink() and path.is_file() and _known_jsonl(path, catalog=True):
             candidates.add(path)
+    from llm_bench.progress import ProgressState
+
+    for path in root.glob("benchmark-state-*.jsonl"):
+        if path.is_symlink() or not path.is_file():
+            continue
+        try:
+            ProgressState.model_validate_json(path.read_text())
+        except (ValueError, OSError):
+            continue
+        candidates.add(path)
     log = root / "benchmark.log"
     if log.is_file() and not log.is_symlink():
         candidates.add(log)

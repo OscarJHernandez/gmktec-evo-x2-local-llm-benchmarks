@@ -38,6 +38,23 @@ Prompt-cache state is often absent from Ollama. Only an explicit false enters
 uncached prompt-rate summaries. Cached and unknown cases remain distinct. Neither
 phase nor prompt identity establishes cache status by itself.
 
+## Repetitions and statistical interpretation
+
+Inference commands default to **50 measured repetitions per workload**, three
+warm-ups per workload, and one initial startup observation. Across three workloads
+this is 150 measured and ten startup/warm-up calls per model. `REPEAT` / `--repeat`
+accept 1–1000; five is suitable for a quick smoke test, not the default analysis.
+Physics evaluation has its own unchanged repetition settings.
+
+A fixed count is not a statistical sufficiency guarantee. These are repeated timing
+measurements with identical prompts, seed, and temperature zero, not independent
+samples of answer quality. Prompt caching, thermal drift, and autocorrelation can
+make naive confidence intervals too narrow. Inspect sample counts and variability
+within matched workload/context/phase/model groups and repeat sessions to assess
+between-session variation. Increasing repetitions cannot compensate for biased
+workload selection. Default sweeps run smaller artifacts first for practical disk
+use; run-order effects must be considered in cross-model comparisons.
+
 ## Reproducibility and interpretation
 
 Keep model/digest, quantization, context, workload, temperature, thinking mode,
