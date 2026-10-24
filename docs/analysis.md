@@ -28,6 +28,47 @@ device/source before joining; the chosen series is printed. Missing measurements
 remain NULL, and excluded counts are shown. Raw traces are loaded only for a
 selected invocation/experiment. Inspect coverage before comparing energy.
 
+## Network access
+
+Run this command on the computer holding your benchmark results:
+
+```bash
+make notebook-serve
+```
+
+JupyterLab runs in the foreground without opening a browser on the server. It
+serves the repository root and initially selects
+`notebooks/benchmark_analysis.ipynb`, so notebooks can access `results/`.
+The command installs the existing optional `analysis` dependencies through `uv`.
+You can also select an export with
+`BENCHMARK_EXPORT_DIR=/absolute/path/to/snapshot make notebook-serve`.
+
+On another device, open `http://<server-hostname>:8888/` and enter the token
+printed in the server terminal. Alternatively, replace the host in the printed
+token URL with the server's hostname or LAN IP, preserving its port, path, and
+token. If the hostname does not resolve on your network, use the LAN IP directly.
+
+The defaults are `JUPYTER_HOST=0.0.0.0` (listen on all interfaces) and
+`JUPYTER_PORT=8888`. The bind address `0.0.0.0` is not the address to enter in a
+browser. Override the port or bind address when launching:
+
+```bash
+make notebook-serve JUPYTER_PORT=8890
+make notebook-serve JUPYTER_HOST=192.0.2.10  # replace with the server's LAN IP
+make notebook-serve JUPYTER_HOST=127.0.0.1  # localhost access only
+```
+
+Allow inbound connections to the selected TCP port in the server's firewall if
+needed. Use this HTTP server only on a trusted network; token authentication
+remains enabled by default, and the token grants access to files and code
+execution. No token or machine-specific Jupyter configuration is stored in the
+repository. Existing user-level Jupyter authentication settings still apply.
+
+If the selected port is occupied, startup fails rather than silently choosing
+another port. Choose a different `JUPYTER_PORT` and use that port in your URL.
+Press Ctrl+C in the server terminal and confirm shutdown when prompted to stop
+JupyterLab. `make notebook` remains available for the existing local workflow.
+
 ## Standalone Python loading
 
 ```python

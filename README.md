@@ -71,6 +71,24 @@ Choose one snapshot in `notebooks/benchmark_analysis.ipynb`, or launch with
 DuckDB SQL → Polars → Plotly. See the [analysis guide](docs/analysis.md).
 Use `make benchmark-report` for a report directly from experiment JSON.
 
+To host JupyterLab for another device on your trusted network, run:
+
+```bash
+make notebook-serve
+# Optional overrides:
+make notebook-serve JUPYTER_PORT=8890
+make notebook-serve JUPYTER_HOST=127.0.0.1  # localhost access only
+```
+
+Open `http://<server-hostname>:8888/` on the other device and enter the token
+printed in the server terminal. Use the server's LAN IP if its hostname does not
+resolve. The default bind address is `0.0.0.0` (all interfaces); allow the selected
+port through the server's firewall if needed. Use this HTTP server only on a
+trusted network. It serves the repository root and initially selects the analysis
+notebook. The command stays in the foreground; press Ctrl+C and confirm shutdown
+when prompted. If the port is occupied, it fails instead of choosing another port.
+See the [network access guide](docs/analysis.md#network-access) for details.
+
 ## Clear data and start fresh
 
 ```bash

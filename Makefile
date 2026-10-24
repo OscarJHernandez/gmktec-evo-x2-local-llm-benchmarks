@@ -8,6 +8,8 @@ NUM_CTX ?= 4096
 NUM_PREDICT ?= 128
 THINK ?= off
 RESULTS ?= results
+JUPYTER_HOST ?= 0.0.0.0
+JUPYTER_PORT ?= 8888
 TELEMETRY ?= on
 TELEMETRY_INTERVAL ?= 1
 DRY_RUN ?= 0
@@ -40,7 +42,7 @@ else
 BENCH_COMMAND = uv run llm-bench compare --models '$(MODELS)' $(COMMON_ARGS)
 endif
 
-.PHONY: setup doctor models benchmark-plan benchmark-start benchmark-status benchmark-stop benchmark-logs benchmark-report benchmark-export benchmark-clean notebook physics-prepare physics-start physics-status physics-stop physics-logs physics-results check
+.PHONY: setup doctor models benchmark-plan benchmark-start benchmark-status benchmark-stop benchmark-logs benchmark-report benchmark-export benchmark-clean notebook notebook-serve physics-prepare physics-start physics-status physics-stop physics-logs physics-results check
 setup:
 	uv sync --extra dev --extra analysis
 doctor:
@@ -71,6 +73,11 @@ benchmark-clean:
 	uv run llm-bench clean --output-dir "$(RESULTS)" $(CLEAN_FLAG)
 notebook:
 	uv run --extra analysis jupyter lab notebooks/benchmark_analysis.ipynb
+notebook-serve:
+	uv run --extra analysis jupyter lab notebooks/benchmark_analysis.ipynb --no-browser \
+		--ServerApp.ip='$(JUPYTER_HOST)' --ServerApp.port='$(JUPYTER_PORT)' \
+		--ServerApp.port_retries=0 --ServerApp.allow_remote_access=True \
+		--ServerApp.root_dir='$(CURDIR)'
 # Physics jobs have their own tmux session and do not interfere with inference benchmarks.
 physics-prepare:
 	uv run llm-bench physics-prepare --dataset '$(PHYSICS_DATASET)' --data-dir '$(RESULTS)/datasets'
