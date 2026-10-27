@@ -126,7 +126,7 @@ new IDs, but cleanup does not force a cold model load.
 ## Verify on metacon
 
 ```bash
-uv sync --extra dev --extra analysis
+uv sync --extra analysis
 make doctor
 make benchmark-start MODELS=qwen3.5:9b,qwen3.5:27b,qwen3.5:35b REPEAT=5 TELEMETRY=on TELEMETRY_INTERVAL=1
 make benchmark-status

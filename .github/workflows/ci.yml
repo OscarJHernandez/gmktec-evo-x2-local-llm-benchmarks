@@ -2,17 +2,27 @@ name: CI
 
 on:
   push:
+    branches: [main]
   pull_request:
 
 permissions:
   contents: read
 
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   test:
-    runs-on: llm-bench-runners
+    # GitHub-hosted: this repository is public and runs untrusted pull requests,
+    # so CI must never execute on a self-hosted machine.
+    runs-on: ubuntu-latest
     strategy:
+      fail-fast: false
       matrix:
-        python-version: ["3.10", "3.11", "3.12"]
+        python-version: ["3.10", "3.11", "3.12", "3.13"]
+    env:
+      UV_PYTHON: ${{ matrix.python-version }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
@@ -20,12 +30,9 @@ jobs:
       - uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884
         with:
           enable-cache: true
-      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97
-        with:
-          python-version: ${{ matrix.python-version }}
-      - run: uv sync --extra dev --extra analysis
+      - run: uv sync --locked --extra analysis
       - run: uv run ruff format --check .
       - run: uv run ruff check .
       - run: uv run mypy
-      - run: uv run pytest
+      - run: uv run pytest --cov
       - run: uv build
