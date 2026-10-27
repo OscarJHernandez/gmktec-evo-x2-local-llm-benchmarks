@@ -1,6 +1,6 @@
 # Automatic Ollama sweeps
 
-`make benchmark-start` uses **live library discovery**, pulls missing eligible
+`just benchmark-start` uses **live library discovery**, pulls missing eligible
 models, and benchmarks them sequentially in a detached tmux session. It needs no
 model list. The default is **50 measured repetitions per workload**, three
 warm-ups per workload, and one initial startup observation: 160 generation calls
@@ -10,13 +10,13 @@ values are 1–1000. Five repetitions are useful for smoke tests, not the defaul
 ## Preview, run, and monitor
 
 ```bash
-make benchmark-plan                  # metadata/fit preview; no downloads or inference
-make benchmark-start                 # automatic library sweep, downloads as needed
-make benchmark-status                # one progress snapshot
-watch -n 5 make --no-print-directory benchmark-status
-make benchmark-logs
-make benchmark-stop
-make benchmark-export
+just benchmark-plan                  # metadata/fit preview; no downloads or inference
+just benchmark-start                 # automatic library sweep, downloads as needed
+just benchmark-status                # one progress snapshot
+watch -n 5 just benchmark-status
+just benchmark-logs
+just benchmark-stop
+just benchmark-export
 ```
 
 `benchmark-status` shows the latest run ID, process status, model progress bar,
@@ -76,10 +76,10 @@ to approximate catalog sizes. Installed models can still run.
 For a fixed candidate list or unavailable library metadata, choose the bundled 44-tag catalog:
 
 ```bash
-make benchmark-start DISCOVERY=curated
-make benchmark-start MODELS=installed       # no discovery network calls or pulls
-make benchmark-start MODELS=qwen3.5:9b      # named installed models only
-make benchmark-plan MODELS=qwen3.5:9b       # preview that same named selection
+just DISCOVERY=curated benchmark-start
+just MODELS=installed benchmark-start       # no discovery network calls or pulls
+just MODELS=qwen3.5:9b benchmark-start      # named installed models only
+just MODELS=qwen3.5:9b benchmark-plan       # preview that same named selection
 ```
 
 ## Fit and storage
@@ -126,13 +126,13 @@ groups, inspect distributions, and repeat whole sessions for between-session
 variation. See [methodology](methodology.md#repetitions-and-statistical-interpretation).
 
 ```bash
-make benchmark-stop
-make benchmark-clean DRY_RUN=1
-make benchmark-clean
-make benchmark-start
-make benchmark-status
-make benchmark-export
-make notebook
+just benchmark-stop
+just DRY_RUN=1 benchmark-clean
+just benchmark-clean
+just benchmark-start
+just benchmark-status
+just benchmark-export
+just notebook
 ```
 
 Use the same `RESULTS=/path/to/results` on each command for custom directories.

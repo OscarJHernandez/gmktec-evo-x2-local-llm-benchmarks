@@ -18,6 +18,9 @@ uv run pytest
 uv build
 ```
 
+`just check` runs the format, lint, type and test steps in one go
+(`uv tool install rust-just`).
+
 Add tests using mocked backend responses; tests must not download models, contact
 a live Ollama server, or require GPU hardware. Keep raw local benchmark results
 out of version control. Preserve measurement provenance and report synthetic

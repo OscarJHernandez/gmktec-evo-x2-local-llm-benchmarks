@@ -25,6 +25,10 @@ uv build
 uv run llm-bench --help
 ```
 
+`just` (install with `uv tool install rust-just`) wraps these and the benchmark
+workflows: `just` lists recipes, `just check` runs the CI checks. Settings are
+overridden as `just REPEAT=5 benchmark-start`.
+
 Run all of these before declaring work done. CI runs the same steps on Python
 3.10-3.13.
 

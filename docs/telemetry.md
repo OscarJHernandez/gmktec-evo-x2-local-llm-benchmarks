@@ -104,9 +104,9 @@ measurement of generation-only efficiency or wall-socket electricity use.
 
 ## Cleanup
 
-`make benchmark-clean DRY_RUN=1` previews individual files; `make benchmark-clean`
+`just DRY_RUN=1 benchmark-clean` previews individual files; `just benchmark-clean`
 removes them. The equivalent CLI is `uv run llm-bench clean --output-dir results
-[--dry-run]`. Stop background work first with `make benchmark-stop`.
+[--dry-run]`. Stop background work first with `just benchmark-stop`.
 
 Cleanup recognizes validated experiment JSON and associated CSV, catalog progress
 JSONL, `benchmark.log`, framework HTML reports, legacy observation exports, and
@@ -127,13 +127,13 @@ new IDs, but cleanup does not force a cold model load.
 
 ```bash
 uv sync --extra analysis
-make doctor
-make benchmark-start MODELS=qwen3.5:9b,qwen3.5:27b,qwen3.5:35b REPEAT=5 TELEMETRY=on TELEMETRY_INTERVAL=1
-make benchmark-status
-make benchmark-logs
+just doctor
+just MODELS=qwen3.5:9b,qwen3.5:27b,qwen3.5:35b REPEAT=5 TELEMETRY=on TELEMETRY_INTERVAL=1 benchmark-start
+just benchmark-status
+just benchmark-logs
 # Wait until the benchmark is stopped/completed, then:
-make benchmark-export
-BENCHMARK_EXPORT_DIR=/absolute/path/printed/by/export make notebook
+just benchmark-export
+BENCHMARK_EXPORT_DIR=/absolute/path/printed/by/export just notebook
 ```
 
 In `doctor`, check CPU/GPU identity and available sensor paths. In the notebook,

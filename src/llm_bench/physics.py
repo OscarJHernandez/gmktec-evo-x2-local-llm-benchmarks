@@ -165,7 +165,7 @@ def load_questions(dataset: str, root: Path) -> list[Question]:
         path = root / dataset / filename
         if not path.is_file():
             raise FileNotFoundError(
-                f"Missing {path}; run 'make physics-prepare PHYSICS_DATASET={dataset}'"
+                f"Missing {path}; run 'just PHYSICS_DATASET={dataset} physics-prepare'"
             )
         digest = hashlib.sha256(path.read_bytes()).hexdigest()
         for index, entry in enumerate(_entries(path)):

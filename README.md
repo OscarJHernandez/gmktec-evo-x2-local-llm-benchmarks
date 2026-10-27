@@ -11,13 +11,16 @@ driver, permissions, and hardware; unsupported values remain unavailable.
 ## Install
 
 Requirements: Python 3.10+, [uv](https://docs.astral.sh/uv/), and a running
-[Ollama](https://ollama.com/) server. Make and tmux are needed for background jobs.
+[Ollama](https://ollama.com/) server. [just](https://just.systems/) and tmux are
+needed for the recipes and background jobs (`uv tool install rust-just`,
+`sudo apt install tmux`). Run `just` to list recipes; every recipe is a thin wrapper
+over `uv run llm-bench ...`.
 
 ```bash
 git clone https://github.com/OscarJHernandez/gmktec-evo-x2-local-llm-benchmarks.git
 cd gmktec-evo-x2-local-llm-benchmarks
 uv sync
-make doctor
+just doctor
 ```
 
 `uv sync` automatically creates `.venv` and installs dependencies. `uv run`
@@ -29,16 +32,16 @@ ROCm management services are required for ordinary benchmarks.
 Run the automatic library sweep without listing models:
 
 ```bash
-make benchmark-plan                  # preview candidates and fit checks
-make benchmark-start                 # discover, download as needed, benchmark
-make benchmark-status                # progress bar, completed/remaining, active model
-make benchmark-logs
-make benchmark-stop
+just benchmark-plan                  # preview candidates and fit checks
+just benchmark-start                 # discover, download as needed, benchmark
+just benchmark-status                # progress bar, completed/remaining, active model
+just benchmark-logs
+just benchmark-stop
 ```
 
 Defaults are **50 measured repetitions per workload** and three warm-ups.
 Use `REPEAT=100` for longer sampling. Status includes download progress and the
-current workload/repetition; `watch -n 5 make --no-print-directory benchmark-status`
+current workload/repetition; `watch -n 5 just benchmark-status`
 refreshes it. Fifty runs measure timing variability, not independent model-quality
 samples; see [methodology](docs/methodology.md).
 
@@ -56,9 +59,9 @@ Telemetry defaults to one-second sampling. Set `TELEMETRY_INTERVAL`, `TELEMETRY=
 ## Export and analyze
 
 ```bash
-make benchmark-export
+just benchmark-export
 uv sync --extra analysis
-make notebook
+just notebook
 ```
 
 Exports create a unique directory under `results/exports/` containing
@@ -67,17 +70,17 @@ Exports create a unique directory under `results/exports/` containing
 Parquet is the recommended analytical format; raw experiment JSON remains available.
 
 Choose one snapshot in `notebooks/benchmark_analysis.ipynb`, or launch with
-`BENCHMARK_EXPORT_DIR=/path/to/snapshot make notebook`. The notebook uses
+`BENCHMARK_EXPORT_DIR=/path/to/snapshot just notebook`. The notebook uses
 DuckDB SQL → Polars → Plotly. See the [analysis guide](docs/analysis.md).
-Use `make benchmark-report` for a report directly from experiment JSON.
+Use `just benchmark-report` for a report directly from experiment JSON.
 
 To host JupyterLab for another device on your trusted network, run:
 
 ```bash
-make notebook-serve
+just notebook-serve
 # Optional overrides:
-make notebook-serve JUPYTER_PORT=8890
-make notebook-serve JUPYTER_HOST=127.0.0.1  # localhost access only
+just JUPYTER_PORT=8890 notebook-serve
+just JUPYTER_HOST=127.0.0.1 notebook-serve  # localhost access only
 ```
 
 Open `http://<server-hostname>:8888/` on the other device and enter the token
@@ -92,10 +95,10 @@ See the [network access guide](docs/analysis.md#network-access) for details.
 ## Clear data and start fresh
 
 ```bash
-make benchmark-stop
-make benchmark-clean DRY_RUN=1
-make benchmark-clean
-make benchmark-start
+just benchmark-stop
+just DRY_RUN=1 benchmark-clean
+just benchmark-clean
+just benchmark-start
 ```
 
 Cleanup removes recognized inference results, exports, reports, and logs inside
@@ -113,7 +116,7 @@ IDs; clearing files does not unload models. See [cleanup details](docs/telemetry
 
 ```bash
 uv sync --extra analysis
-make check
+just check
 uv build
 ```
 
