@@ -12,6 +12,7 @@
 - Added `AGENTS.md` for coding agents.
 - Test suite: Ollama backend, storage/cleanup safety, CLI and physics dataset
   preparation tests; shared builders in `tests/factories.py`; coverage floor of 88%.
+- `just notebook-remote`: export, then serve the notebook on localhost for an SSH tunnel.
 - Agent skills in `.claude/skills/` and a curated `docs/agent-learnings.md`.
 - Replaced the Makefile with a `justfile` exposing the same recipe names and
   settings; override settings as `just REPEAT=100 benchmark-start`.
