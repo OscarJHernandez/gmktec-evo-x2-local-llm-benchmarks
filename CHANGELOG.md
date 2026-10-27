@@ -10,6 +10,8 @@
   environment and coverage reporting; `dev` tools moved to a dependency group.
 - Pre-commit hooks for file hygiene and notebook output stripping.
 - Added `AGENTS.md` for coding agents.
+- Replaced the Makefile with a `justfile` exposing the same recipe names and
+  settings; override settings as `just REPEAT=100 benchmark-start`.
 
 ## 0.1.0
 
