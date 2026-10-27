@@ -75,6 +75,22 @@ Run all of these before declaring work done. CI runs the same steps on Python
 strict), ruff with 100-column lines, small focused functions, comments only for
 non-obvious intent. Match the surrounding code.
 
+## Skills and learnings
+
+Skills in `.claude/skills/<name>/SKILL.md` are plain Markdown playbooks; any agent can
+read them. Before starting, skim `docs/agent-learnings.md`. Before finishing a task
+that surprised you, use `capture-learnings`.
+
+| Skill | Use when |
+|---|---|
+| [capture-learnings](.claude/skills/capture-learnings/SKILL.md) | A non-obvious lesson should be recorded in `docs/agent-learnings.md` |
+| [run-benchmark](.claude/skills/run-benchmark/SKILL.md) | Planning, starting, monitoring, stopping or exporting a benchmark |
+| [analyze-results](.claude/skills/analyze-results/SKILL.md) | Querying exported Parquet, using the notebook, interpreting results |
+| [add-backend](.claude/skills/add-backend/SKILL.md) | Supporting another inference engine |
+| [add-telemetry-collector](.claude/skills/add-telemetry-collector/SKILL.md) | Adding or fixing a sensor or metric |
+| [add-physics-dataset](.claude/skills/add-physics-dataset/SKILL.md) | Adding a physics question set or changing scoring |
+| [prepare-pr](.claude/skills/prepare-pr/SKILL.md) | Before committing or opening a PR |
+
 ## Pull requests
 
 Keep PRs focused, use the PR template, and list how you verified the change.
