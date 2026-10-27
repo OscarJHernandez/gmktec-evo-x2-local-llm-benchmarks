@@ -6,9 +6,9 @@ from pathlib import Path
 
 import nbformat
 import pytest
+from factories import fixture_experiment
 from jupyter_client import KernelManager
 from nbclient import NotebookClient
-from test_analytical import fixture_experiment
 
 from llm_bench.analytical import export_snapshot
 from llm_bench.persistence import load_experiments

@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import Any
 
 import pytest
-from test_core import FakeBackend
+from factories import FakeBackend
 from typer.testing import CliRunner
 
 from llm_bench import cli
