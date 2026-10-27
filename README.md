@@ -112,7 +112,7 @@ IDs; clearing files does not unload models. See [cleanup details](docs/telemetry
 - [Backend development](docs/adding-a-backend.md) and [contributing](CONTRIBUTING.md)
 
 ```bash
-uv sync --extra dev --extra analysis
+uv sync --extra analysis
 make check
 uv build
 ```

@@ -9,7 +9,8 @@ without checking for private prompts or environment information.
 Use Python 3.10 or later and uv:
 
 ```console
-uv sync --extra dev --extra analysis
+uv sync --extra analysis
+uv run pre-commit install   # optional: formats, lints and strips notebook outputs
 uv run ruff format .
 uv run ruff check .
 uv run mypy
@@ -21,3 +22,5 @@ Add tests using mocked backend responses; tests must not download models, contac
 a live Ollama server, or require GPU hardware. Keep raw local benchmark results
 out of version control. Preserve measurement provenance and report synthetic
 fixtures as synthetic.
+
+Coding agents should read [AGENTS.md](AGENTS.md); it summarises the layout and rules.
