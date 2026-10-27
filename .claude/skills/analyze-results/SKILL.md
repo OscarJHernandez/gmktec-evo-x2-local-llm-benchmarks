@@ -12,9 +12,10 @@ description: Answer questions about llm-bench results using exported Parquet sna
 2. Query it with DuckDB and Polars (`uv sync --extra analysis`). Schemas and column
    meanings: `docs/parquet-schema.md` (code: `SCHEMAS` in `src/llm_bench/analytical.py`).
    Tested SQL examples: `docs/analysis.md`.
-3. Interactive: `BENCHMARK_EXPORT_DIR=/abs/path/to/snapshot just notebook`
-   (`just notebook-serve` shares it on a trusted network; it binds all interfaces by
-   default, use `JUPYTER_HOST=127.0.0.1` for local only).
+3. Interactive: `BENCHMARK_EXPORT_DIR=/abs/path/to/snapshot just notebook`.
+   From another computer, prefer `just notebook-remote` over SSH (exports the newest
+   snapshot, binds localhost only; command in `docs/analysis.md#network-access`).
+   `just notebook-serve` binds all interfaces over HTTP: trusted LAN only.
 
 ## Interpret with care (see `docs/methodology.md`)
 

@@ -74,7 +74,19 @@ Choose one snapshot in `notebooks/benchmark_analysis.ipynb`, or launch with
 DuckDB SQL → Polars → Plotly. See the [analysis guide](docs/analysis.md).
 Use `just benchmark-report` for a report directly from experiment JSON.
 
-To host JupyterLab for another device on your trusted network, run:
+**From your own computer (recommended).** One command starts the tunnel, exports the
+latest results and serves the notebook on the server's localhost only. Nothing is
+exposed to the network. Replace `user@server` and the repository path:
+
+```bash
+ssh -t -L 8888:127.0.0.1:8888 user@server 'bash -lc "cd /path/to/repo && just notebook-remote"'
+```
+
+Then open `http://127.0.0.1:8888/` and paste the token printed in that terminal
+(`just notebook-remote` prints this exact command for your server). Press Ctrl+C
+twice to stop it. Change the port with `JUPYTER_PORT`.
+
+To host JupyterLab for another device on your trusted network instead, run:
 
 ```bash
 just notebook-serve

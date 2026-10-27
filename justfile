@@ -119,6 +119,22 @@ notebook-serve:
         --ServerApp.port_retries=0 --ServerApp.allow_remote_access=True \
         --ServerApp.root_dir='{{justfile_directory()}}'
 
+# Export the latest results and serve the notebook on localhost only (reach it via SSH).
+notebook-remote:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    uv run llm-bench export --input "{{RESULTS}}" --output-dir "{{RESULTS}}/exports"
+    snapshot="$(realpath "$(dirname "$(ls -1 "{{RESULTS}}"/exports/*/manifest.json | sort | tail -1)")")"
+    echo
+    echo "Notebook: http://127.0.0.1:{{JUPYTER_PORT}}/  (use the token URL printed below)"
+    echo "From your computer: ssh -t -L {{JUPYTER_PORT}}:127.0.0.1:{{JUPYTER_PORT}} $USER@$(hostname) \\"
+    echo "  'bash -lc \"cd {{justfile_directory()}} && just notebook-remote\"'"
+    echo
+    BENCHMARK_EXPORT_DIR="$snapshot" exec uv run --extra analysis jupyter lab \
+        notebooks/benchmark_analysis.ipynb --no-browser \
+        --ServerApp.ip=127.0.0.1 --ServerApp.port='{{JUPYTER_PORT}}' \
+        --ServerApp.port_retries=0 --ServerApp.root_dir='{{justfile_directory()}}'
+
 # Physics jobs have their own tmux session and do not interfere with inference benchmarks.
 
 # Download and cache a physics dataset.

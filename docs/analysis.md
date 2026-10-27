@@ -30,6 +30,24 @@ selected invocation/experiment. Inspect coverage before comparing energy.
 
 ## Network access
 
+### Over SSH (recommended)
+
+From your own computer, one command exports the latest results, serves the notebook
+on the server's localhost only, and forwards it to you:
+
+```bash
+ssh -t -L 8888:127.0.0.1:8888 user@server 'bash -lc "cd /path/to/repo && just notebook-remote"'
+```
+
+Open `http://127.0.0.1:8888/` and enter the token printed in that terminal. Ctrl+C
+(twice) stops it. `just notebook-remote` always selects the newest completed
+snapshot, binds `127.0.0.1` and does not open any firewall port; `bash -lc` makes sure
+`uv` and `just` are on the PATH. Use `-J jump-host` if you reach the server through a
+bastion, and `JUPYTER_PORT` for a different port. The notebook reads exported
+snapshots only, so a running benchmark is unaffected.
+
+### On a trusted LAN
+
 Run this command on the computer holding your benchmark results:
 
 ```bash
