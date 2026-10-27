@@ -10,6 +10,10 @@
   environment and coverage reporting; `dev` tools moved to a dependency group.
 - Pre-commit hooks for file hygiene and notebook output stripping.
 - Added `AGENTS.md` for coding agents.
+- Test suite: Ollama backend, storage/cleanup safety, CLI and physics dataset
+  preparation tests; shared builders in `tests/factories.py`; coverage floor of 88%.
+- Replaced the Makefile with a `justfile` exposing the same recipe names and
+  settings; override settings as `just REPEAT=100 benchmark-start`.
 
 ## 0.1.0
 

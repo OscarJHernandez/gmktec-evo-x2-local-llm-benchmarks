@@ -1,17 +1,17 @@
 # Optional physics reasoning suite
 
 This suite is independent from the throughput benchmark. It does **not** run when
-`make benchmark-start` runs. All experiments run against **locally installed**
+`just benchmark-start` runs. All experiments run against **locally installed**
 Ollama models. Physics dataset fetching is explicit and does not download models.
 
 ## Quick start
 
 ```bash
-make physics-start
-make physics-status
-make physics-logs
-make physics-stop
-make physics-results
+just physics-start
+just physics-status
+just physics-logs
+just physics-stop
+just physics-results
 ```
 
 Default: **SciBench**, 50 randomly selected questions (one shared deterministic
@@ -20,11 +20,11 @@ selection across models), **3 attempts per question**, 8,192 context tokens,
 seeds. Switch to other datasets and specific models:
 
 ```bash
-make physics-start PHYSICS_DATASET=ugphysics PHYSICS_QUESTIONS=200 PHYSICS_MODELS=qwen3.5:9b,qwen3.5:35b PHYSICS_REPEAT=5
-make physics-start PHYSICS_DATASET=phybench PHYSICS_QUESTIONS=100 PHYSICS_MODELS=installed PHYSICS_THINK=on
+just PHYSICS_DATASET=ugphysics PHYSICS_QUESTIONS=200 PHYSICS_MODELS=qwen3.5:9b,qwen3.5:35b PHYSICS_REPEAT=5 physics-start
+just PHYSICS_DATASET=phybench PHYSICS_QUESTIONS=100 PHYSICS_MODELS=installed PHYSICS_THINK=on physics-start
 ```
 
-Run `make physics-prepare PHYSICS_DATASET=phybench` to cache data without
+Run `just PHYSICS_DATASET=phybench physics-prepare` to cache data without
 starting inference. The Makefile uses `--fetch` during `physics-start` to
 download a missing official source file once and reuse it later.
 

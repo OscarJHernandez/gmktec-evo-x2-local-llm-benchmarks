@@ -1,6 +1,6 @@
 # Analytical schema 1.2
 
-`make benchmark-export` publishes a unique, completed snapshot under
+`just benchmark-export` publishes a unique, completed snapshot under
 `results/exports/<UTC>-<UUID>/`. Use **one snapshot at a time**: exports are snapshots
 of the input collection, so globbing multiple snapshots can duplicate experiments.
 The manifest records schema version, creation time, row counts, files, and IDs.

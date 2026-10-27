@@ -67,6 +67,7 @@ source = ["llm_bench"]
 branch = true
 
 [tool.coverage.report]
+fail_under = 88
 show_missing = true
 skip_covered = true
 

@@ -160,7 +160,7 @@ def test_catalog_defaults_not_to_download(monkeypatch: pytest.MonkeyPatch, tmp_p
 def test_live_catalog_end_to_end_progress_fit_and_failure(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
-    from test_core import FakeBackend
+    from factories import FakeBackend
 
     from llm_bench.discovery import Discovery
     from llm_bench.progress import latest_progress, status_text
@@ -301,7 +301,7 @@ def test_installed_alias_deduplication_and_safe_community_names() -> None:
 def test_installed_only_never_discovers_or_pulls_and_reuses_alias(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    from test_core import FakeBackend
+    from factories import FakeBackend
 
     from llm_bench.progress import latest_progress
 
@@ -343,7 +343,7 @@ def test_installed_only_never_discovers_or_pulls_and_reuses_alias(
 def test_catalog_reuses_installed_manifest_without_pulling(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    from test_core import FakeBackend
+    from factories import FakeBackend
 
     from llm_bench.discovery import Discovery
 
@@ -397,7 +397,7 @@ def test_named_model_preview_matches_make_selection_without_writing_results(
 def test_curated_catalog_uses_actual_installed_size_and_deduplicates_aliases(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    from test_core import FakeBackend
+    from factories import FakeBackend
 
     from llm_bench.progress import latest_progress
 

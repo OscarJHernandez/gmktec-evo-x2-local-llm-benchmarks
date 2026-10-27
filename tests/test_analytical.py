@@ -12,42 +12,13 @@ import polars as pl
 import pyarrow as pa
 import pyarrow.parquet as pq
 import pytest
-from test_core import make_experiment
-from test_telemetry import observation
+from factories import fixture_experiment, make_experiment
 from typer.testing import CliRunner
 
 from llm_bench.analytical import SCHEMAS, export_snapshot
 from llm_bench.cli import app
 from llm_bench.persistence import load_experiments, save_experiment
 from llm_bench.storage import clean_results, cleanup_candidates
-from llm_bench.telemetry.aggregation import summarize_telemetry
-
-
-def fixture_experiment(telemetry: bool = True):
-    experiment = make_experiment()
-    experiment.settings = {
-        "num_ctx": 4096,
-        "num_predict": 128,
-        "telemetry_interval_seconds": 1,
-        "telemetry_host_role": "inference_host",
-    }
-    experiment.samples[0].invocation_id = "run"
-    experiment.samples[0].telemetry_duration_seconds = 1
-    if telemetry:
-        for metric, value in (
-            ("power", 40),
-            ("gpu_utilization", 75),
-            ("cpu_utilization", 10),
-            ("ram_used", 1000000000),
-            ("temperature", 65),
-        ):
-            points = [observation(t, value, metric) for t in [-0.1, 0.5, 1.1]]
-            if metric == "ram_used":
-                for point in points:
-                    point.value_int, point.value_float = int(value), None
-            experiment.telemetry.extend(points)
-        experiment.telemetry_summaries = summarize_telemetry(experiment.telemetry, 1, 1, 12)
-    return experiment
 
 
 def test_parquet_explicit_types_roundtrip_and_readers(tmp_path: Path) -> None:
@@ -211,7 +182,7 @@ def test_documented_sql_examples_execute(tmp_path: Path) -> None:
 
 
 def test_full_cli_fresh_start_sequence(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    from test_core import FakeBackend
+    from factories import FakeBackend
 
     from llm_bench import cli
 

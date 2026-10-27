@@ -2,12 +2,11 @@ from __future__ import annotations
 
 import subprocess
 import threading
-from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
 import pytest
-from test_core import FakeBackend
+from factories import FakeBackend, observation
 
 from llm_bench.models import BenchmarkConfig
 from llm_bench.runner import run_benchmark
@@ -15,7 +14,6 @@ from llm_bench.telemetry.aggregation import summarize_telemetry
 from llm_bench.telemetry.collectors import Collector, capability, parse_smi
 from llm_bench.telemetry.discovery import cpu_name, discover_gpus
 from llm_bench.telemetry.sampling import Sampler
-from llm_bench.telemetry.schemas import Observation
 
 
 def write(path: Path, value: str) -> None:
@@ -159,17 +157,6 @@ def test_sampling_lifecycle_periodic_boundaries_and_failure() -> None:
     assert first.observations[0].offset_seconds <= 0
     assert first.observations[-1].offset_seconds >= first.end - first.start
     assert sampler.stats.collection_count >= 5
-
-
-def observation(t: float, value: float | None, metric: str = "power", **kwargs: Any) -> Observation:
-    return Observation(
-        **capability(metric, "fixture", **kwargs).model_dump(),
-        invocation_id="run",
-        sequence=int((t + 1) * 10),
-        timestamp_utc=datetime.now(timezone.utc),
-        offset_seconds=t,
-        value_float=value,
-    )
 
 
 @pytest.mark.parametrize(

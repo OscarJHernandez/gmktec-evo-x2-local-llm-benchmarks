@@ -20,10 +20,14 @@ uv sync --extra analysis            # dev tools come from the default `dev` grou
 uv run ruff format .                # CI runs `ruff format --check .`
 uv run ruff check .
 uv run mypy                         # strict
-uv run pytest                       # add --cov for coverage
+uv run pytest --cov                 # coverage floor is enforced (88%)
 uv build
 uv run llm-bench --help
 ```
+
+`just` (install with `uv tool install rust-just`) wraps these and the benchmark
+workflows: `just` lists recipes, `just check` runs the CI checks. Settings are
+overridden as `just REPEAT=5 benchmark-start`.
 
 Run all of these before declaring work done. CI runs the same steps on Python
 3.10-3.13.
@@ -42,7 +46,7 @@ Run all of these before declaring work done. CI runs the same steps on Python
 | `src/llm_bench/analytical.py`, `observations.py`, `persistence.py` | Parquet/CSV/JSONL exports and result I/O |
 | `src/llm_bench/report.py`, `hardware_report.py` | Offline HTML report |
 | `src/llm_bench/physics.py` | Opt-in physics reasoning evaluation |
-| `tests/` | pytest suite (mocked sensors and Ollama) |
+| `tests/` | pytest suite (mocked sensors and Ollama); shared builders in `tests/factories.py` |
 | `docs/` | Methodology, telemetry, schemas, catalog, analysis, backend guide |
 | `notebooks/benchmark_analysis.ipynb` | Analysis notebook (committed **without outputs**) |
 | `examples/` | Synthetic fixtures and a sample report |
