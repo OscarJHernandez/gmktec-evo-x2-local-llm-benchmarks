@@ -90,6 +90,12 @@ that surprised you, use `capture-learnings`.
 | [add-telemetry-collector](.claude/skills/add-telemetry-collector/SKILL.md) | Adding or fixing a sensor or metric |
 | [add-physics-dataset](.claude/skills/add-physics-dataset/SKILL.md) | Adding a physics question set or changing scoring |
 | [prepare-pr](.claude/skills/prepare-pr/SKILL.md) | Before committing or opening a PR |
+| [share-results](.claude/skills/share-results/SKILL.md) | Posting or attaching benchmark output in an issue, PR or discussion |
+| [write-hermetic-tests](.claude/skills/write-hermetic-tests/SKILL.md) | Adding or fixing tests without network, Ollama, GPU or real sensors |
+| [change-schema](.claude/skills/change-schema/SKILL.md) | Changing result models or exported Parquet/CSV/JSONL columns |
+| [update-dependencies](.claude/skills/update-dependencies/SKILL.md) | Bumping packages, Actions or pre-commit hooks; reviewing Dependabot |
+| [review-external-pr](.claude/skills/review-external-pr/SKILL.md) | Reviewing a PR or patch from a fork or outside contributor |
+| [cut-release](.claude/skills/cut-release/SKILL.md) | Versioning, changelog and build checks for a release (stops before tagging) |
 
 ## Pull requests
 
