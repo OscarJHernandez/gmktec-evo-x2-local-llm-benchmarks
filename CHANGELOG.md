@@ -16,6 +16,8 @@
 - Agent skills in `.claude/skills/` and a curated `docs/agent-learnings.md`.
 - Replaced the Makefile with a `justfile` exposing the same recipe names and
   settings; override settings as `just REPEAT=100 benchmark-start`.
+- Dependabot updates are grouped per ecosystem; supported `pyarrow` range widened
+  to `<26`.
 
 ## 0.1.0
 
