@@ -14,7 +14,7 @@ This is a public repository.
    `Unreleased` in `CHANGELOG.md`.
 4. Privacy scan of `git diff origin/main...`: no `results/`, logs, reports, notebook
    outputs, `.env`, hostnames, IPs, usernames, home paths, serials, tokens or model
-   files. Fixtures must be labelled synthetic.
+   files. Fixtures must be labelled synthetic. See `share-results` for what to scrub.
 5. Tests added for new behaviour and still hermetic (no network, live Ollama, GPU).
 6. Run `capture-learnings` if anything non-obvious came up; include that file change.
 7. Use the PR template (`.github/PULL_REQUEST_TEMPLATE.md`): summary, how verified,
